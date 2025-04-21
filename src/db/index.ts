@@ -35,6 +35,8 @@ export async function getDb(): Promise<DbInstance> {
   await client.waitReady;
   console.log("PGlite client is ready.");
 
+  // Add a minimal delay (yield execution) to ensure any final async setup within PGlite settles
+  await new Promise(resolve => setTimeout(resolve, 0));
 
   // Create the Drizzle instance using the PGlite client and the defined schema
   dbInstance = drizzle(client, { schema });
