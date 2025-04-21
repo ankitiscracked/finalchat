@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timeline Chat</title>
+    <link rel="stylesheet" href="styles/main.css"> <!-- We'll compile SCSS to main.css -->
+    <!-- Add Font Awesome for icons (optional, but good for item types) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-timeline" id="chat-timeline">
+            <!-- Timeline items will be loaded here -->
+        </div>
+        <div class="chat-input-area">
+            <textarea id="chat-input" placeholder="Type your message or command (@task, @spend, @event)..."></textarea>
+            <button id="submit-button">Submit</button>
+        </div>
+    </div>
+
+    <script type="module" src="src/main.js"></script> <!-- We'll compile TS to main.js -->
+</body>
+</html>
