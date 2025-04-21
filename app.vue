@@ -49,15 +49,18 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick } from 'vue';
-import { getDb, type DbInstance } from '~/src/db/index'; // Import the getter function and type
-import { timelineItems, type TimelineItem, type NewTimelineItem, type ItemType, itemTypes } from '~/src/db/schema'; // Adjusted path
-import { desc, sql } from 'drizzle-orm';
+// Import the IndexedDB service functions and type
+import { addItem, getAllItems, type TimelineItemRecord } from '~/services/indexedDB';
+
+// Define item types (can be reused from schema or defined here)
+const itemTypes = ['task', 'spend', 'event', 'default'] as const;
+type ItemType = typeof itemTypes[number];
 
 // Define reactive refs
 const newMessage = ref('');
-const db = ref<DbInstance | null>(null); // Ref to hold the DB instance
+// No longer need db ref, but keep isDbReady to track IndexedDB connection
 const isDbReady = ref(false); // State to track DB initialization
-const timeline = ref<TimelineItem[]>([]); // Typed timeline items
+const timeline = ref<TimelineItemRecord[]>([]); // Use the IndexedDB record type
 const chatTimelineRef = ref<HTMLElement | null>(null); // Ref for scrolling
 
 // Helper function to parse message type and content
@@ -106,7 +109,7 @@ function getIconClass(type: ItemType): string {
 
 // Computed property to group timeline items by date
 const groupedTimeline = computed(() => {
-  const groups: Record<string, TimelineItem[]> = {};
+  const groups: Record<string, TimelineItemRecord[]> = {}; // Use TimelineItemRecord
   timeline.value.forEach(item => {
     const dateStr = formatDate(item.createdAt);
     if (!groups[dateStr]) {
@@ -143,72 +146,55 @@ const submitMessage = async () => {
       return; // Don't submit if only command was typed
   }
 
-  const newItem: NewTimelineItem = {
+  // Create item for IndexedDB (id is auto-generated, createdAt defaults in addItem)
+  const newItem: Omit<TimelineItemRecord, 'id' | 'createdAt'> = {
     type: type,
     content: content,
-    // createdAt will be set by default in the database
   };
 
   try {
-    console.log('Saving item:', newItem);
-    if (!db.value) {
-      console.error("Database instance not available.");
-      return;
-    }
-    await db.value.insert(timelineItems).values(newItem);
+    console.log('Saving item to IndexedDB:', newItem);
+    // Use the addItem service function
+    await addItem(newItem);
     console.log('Item saved successfully.');
     newMessage.value = ''; // Clear input
     await loadTimeline(); // Reload timeline to show the new item
   } catch (error) {
-    console.error('Error saving timeline item:', error);
+    console.error('Error saving timeline item to IndexedDB:', error);
     // Optionally: Show an error message to the user
   }
 };
 
 const loadTimeline = async () => {
-  if (!db.value) {
-    console.error("Database instance not available for loading.");
-    timeline.value = []; // Clear timeline if DB is not ready
-    return;
-  }
-  console.log('Loading timeline from database...');
+  // isDbReady check is implicitly handled by getDbPromise inside getAllItems
+  console.log('Loading timeline from IndexedDB...');
   try {
-    // Fetch items, order by creation date ascending for correct display order
-    const items = await db.value.select()
-                          .from(timelineItems)
-                          // Order by ID ascending as a proxy for creation time if defaultNow() precision varies
-                          // Or rely on createdAt if precision is sufficient
-                          .orderBy(timelineItems.id)
-                          // .orderBy(asc(timelineItems.createdAt)) // Alternative if timestamps are reliable
-                          // .limit(100); // Optional: Limit the number of items loaded
-                          ;
-    timeline.value = items;
-    console.log(`Loaded ${items.length} items.`);
+    // Use the getAllItems service function
+    const items = await getAllItems();
+    timeline.value = items; // Items are already sorted by ID in getAllItems
+    console.log(`Loaded ${items.length} items from IndexedDB.`);
     await scrollToBottom(); // Scroll to bottom after loading
   } catch (error) {
-    console.error('Error loading timeline items:', error);
-    // Handle potential errors, e.g., table not found if migrations didn't run
-    if (error instanceof Error && error.message.includes('no such table')) {
-        console.warn("Timeline table not found. Ensure migrations have been applied.");
-        // Optionally, attempt to run migration SQL here if feasible,
-        // but ideally migrations are handled by drizzle-kit apply/push.
-    }
+    console.error('Error loading timeline items from IndexedDB:', error);
     timeline.value = []; // Clear timeline on error
   }
 };
 
 // Load timeline when the component mounts client-side
 onMounted(async () => {
-  // PGlite/IndexedDB only works in the browser
+  // IndexedDB only works in the browser
   if (process.client) {
     try {
-      console.log("Component mounted client-side, getting DB instance...");
-      db.value = await getDb(); // Get the DB instance
-      isDbReady.value = true; // Set DB ready state to true
-      console.log("DB instance acquired, loading timeline...");
-      await loadTimeline(); // Now load the timeline using the instance
+      console.log("Component mounted client-side, initializing IndexedDB connection...");
+      // Trigger DB opening/creation by calling a function that uses getDbPromise
+      // We don't need to store the DB instance itself here anymore.
+      // Calling getAllItems also ensures the DB is opened/ready.
+      await getAllItems(); // This ensures the DB is opened and potentially upgraded
+      isDbReady.value = true; // Mark DB as ready
+      console.log("IndexedDB connection ready, loading timeline...");
+      await loadTimeline(); // Now load the timeline
     } catch (error) {
-        console.error("Failed to initialize database:", error);
+        console.error("Failed to initialize IndexedDB:", error);
         isDbReady.value = false; // Ensure DB is marked as not ready on error
         // Optionally show an error message to the user in the UI
     }
