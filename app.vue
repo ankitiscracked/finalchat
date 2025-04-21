@@ -1,10 +1,4 @@
 <template>
-  <div>
-    <NuxtRouteAnnouncer />
-    <NuxtWelcome />
-  </div>
-</template>
-<template>
   <div class="app-container"> <!-- Added a wrapper for potential global layout -->
     <div class="chat-container">
       <div class="chat-timeline" id="chat-timeline">
