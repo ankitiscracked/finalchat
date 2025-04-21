@@ -29,12 +29,19 @@
       <div class="chat-input-area">
         <textarea
           id="chat-input"
-          placeholder="Type your message or command (@task, @spend, @event)..."
+          :placeholder="isDbReady ? 'Type your message or command (@task, @spend, @event)...' : 'Initializing database...'"
           v-model="newMessage"
           @keydown.meta.enter.prevent="submitMessage"
           @keydown.ctrl.enter.prevent="submitMessage"
+          :disabled="!isDbReady"
         ></textarea>
-        <button id="submit-button" @click="submitMessage">Submit</button>
+        <button
+          id="submit-button"
+          @click="submitMessage"
+          :disabled="!isDbReady"
+        >
+          {{ isDbReady ? 'Submit' : 'Loading...' }}
+        </button>
       </div>
     </div>
   </div>
@@ -49,6 +56,7 @@ import { desc, sql } from 'drizzle-orm';
 // Define reactive refs
 const newMessage = ref('');
 const db = ref<DbInstance | null>(null); // Ref to hold the DB instance
+const isDbReady = ref(false); // State to track DB initialization
 const timeline = ref<TimelineItem[]>([]); // Typed timeline items
 const chatTimelineRef = ref<HTMLElement | null>(null); // Ref for scrolling
 
@@ -196,10 +204,12 @@ onMounted(async () => {
     try {
       console.log("Component mounted client-side, getting DB instance...");
       db.value = await getDb(); // Get the DB instance
+      isDbReady.value = true; // Set DB ready state to true
       console.log("DB instance acquired, loading timeline...");
       await loadTimeline(); // Now load the timeline using the instance
     } catch (error) {
         console.error("Failed to initialize database:", error);
+        isDbReady.value = false; // Ensure DB is marked as not ready on error
         // Optionally show an error message to the user in the UI
     }
   }
