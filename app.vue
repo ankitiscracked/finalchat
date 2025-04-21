@@ -42,12 +42,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick } from 'vue';
-import { db } from '~/src/db/index'; // Adjusted path assuming Nuxt structure
+import { getDb, type DbInstance } from '~/src/db/index'; // Import the getter function and type
 import { timelineItems, type TimelineItem, type NewTimelineItem, type ItemType, itemTypes } from '~/src/db/schema'; // Adjusted path
 import { desc, sql } from 'drizzle-orm';
 
 // Define reactive refs
 const newMessage = ref('');
+const db = ref<DbInstance | null>(null); // Ref to hold the DB instance
 const timeline = ref<TimelineItem[]>([]); // Typed timeline items
 const chatTimelineRef = ref<HTMLElement | null>(null); // Ref for scrolling
 
@@ -142,7 +143,11 @@ const submitMessage = async () => {
 
   try {
     console.log('Saving item:', newItem);
-    await db.insert(timelineItems).values(newItem);
+    if (!db.value) {
+      console.error("Database instance not available.");
+      return;
+    }
+    await db.value.insert(timelineItems).values(newItem);
     console.log('Item saved successfully.');
     newMessage.value = ''; // Clear input
     await loadTimeline(); // Reload timeline to show the new item
@@ -153,10 +158,15 @@ const submitMessage = async () => {
 };
 
 const loadTimeline = async () => {
+  if (!db.value) {
+    console.error("Database instance not available for loading.");
+    timeline.value = []; // Clear timeline if DB is not ready
+    return;
+  }
   console.log('Loading timeline from database...');
   try {
     // Fetch items, order by creation date ascending for correct display order
-    const items = await db.select()
+    const items = await db.value.select()
                           .from(timelineItems)
                           // Order by ID ascending as a proxy for creation time if defaultNow() precision varies
                           // Or rely on createdAt if precision is sufficient
@@ -183,10 +193,15 @@ const loadTimeline = async () => {
 onMounted(async () => {
   // PGlite/IndexedDB only works in the browser
   if (process.client) {
-    // Ensure DB client is ready before loading. PGlite constructor is async.
-    // We might need a more robust way to await PGlite readiness if it causes issues.
-    // For now, assume the import initializes it sufficiently before mount completes.
-    await loadTimeline();
+    try {
+      console.log("Component mounted client-side, getting DB instance...");
+      db.value = await getDb(); // Get the DB instance
+      console.log("DB instance acquired, loading timeline...");
+      await loadTimeline(); // Now load the timeline using the instance
+    } catch (error) {
+        console.error("Failed to initialize database:", error);
+        // Optionally show an error message to the user in the UI
+    }
   }
 });
 
