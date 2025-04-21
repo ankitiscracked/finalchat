@@ -1,9 +1,30 @@
 <template>
   <div class="app-container"> <!-- Added a wrapper for potential global layout -->
     <div class="chat-container">
-      <div class="chat-timeline" id="chat-timeline">
-        <!-- Timeline items will be loaded here -->
-        <p>Timeline loading...</p> <!-- Placeholder -->
+      <div class="chat-timeline" id="chat-timeline" ref="chatTimelineRef">
+        <!-- Iterate over grouped timeline items -->
+        <template v-if="groupedTimeline.length > 0">
+          <div v-for="([date, items], index) in groupedTimeline" :key="date">
+            <div class="date-separator">{{ date }}</div>
+            <div
+              v-for="item in items"
+              :key="item.id"
+              :class="['timeline-item', `item-${item.type}`]"
+            >
+              <span class="item-icon">
+                <i :class="getIconClass(item.type)"></i>
+              </span>
+              <div class="item-content">
+                {{ item.content }}
+                <span class="item-timestamp">{{ formatTime(item.createdAt) }}</span>
+              </div>
+            </div>
+          </div>
+        </template>
+        <!-- Show message if timeline is empty -->
+        <p v-else-if="!timeline.length">Your timeline is empty. Add items below!</p>
+        <!-- Keep loading text only initially -->
+        <p v-else>Loading timeline...</p>
       </div>
       <div class="chat-input-area">
         <textarea
@@ -20,35 +41,152 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-// We will import DB functions and types here later
-// import { db } from '~/src/db'; // Example path, adjust as needed
-// import { timelineItems, type NewTimelineItem, type ItemType } from '~/src/db/schema';
-// import { desc } from 'drizzle-orm';
+import { ref, onMounted, computed, nextTick } from 'vue';
+import { db } from '~/src/db/index'; // Adjusted path assuming Nuxt structure
+import { timelineItems, type TimelineItem, type NewTimelineItem, type ItemType, itemTypes } from '~/src/db/schema'; // Adjusted path
+import { desc, sql } from 'drizzle-orm';
 
+// Define reactive refs
 const newMessage = ref('');
-const timeline = ref([]); // Placeholder for timeline items
+const timeline = ref<TimelineItem[]>([]); // Typed timeline items
+const chatTimelineRef = ref<HTMLElement | null>(null); // Ref for scrolling
 
-const submitMessage = () => {
-  if (!newMessage.value.trim()) return;
-  console.log('Submitting:', newMessage.value);
-  // TODO: Process message (check for commands), save to DB, update timeline
-  newMessage.value = ''; // Clear input
+// Helper function to parse message type and content
+function parseMessage(message: string): { type: ItemType; content: string } {
+  const trimmedMessage = message.trim();
+  for (const type of itemTypes) {
+    if (type === 'default') continue; // Skip default type check
+    const prefix = `@${type} `;
+    if (trimmedMessage.startsWith(prefix)) {
+      return { type, content: trimmedMessage.substring(prefix.length) };
+    }
+  }
+  // If no command prefix matches, treat as default message
+  return { type: 'default', content: trimmedMessage };
+}
+
+// Helper function to format date
+function formatDate(date: Date | null): string {
+  if (!date) return '';
+  return date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+// Helper function to format time
+function formatTime(date: Date | null): string {
+    if (!date) return '';
+    return date.toLocaleTimeString(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true // Use true or false based on preference
+    });
+}
+
+// Helper to get icon class based on type
+function getIconClass(type: ItemType): string {
+    switch (type) {
+        case 'task': return 'fa-solid fa-list-check';
+        case 'spend': return 'fa-solid fa-dollar-sign';
+        case 'event': return 'fa-solid fa-calendar-day';
+        default: return 'fa-solid fa-message';
+    }
+}
+
+// Computed property to group timeline items by date
+const groupedTimeline = computed(() => {
+  const groups: Record<string, TimelineItem[]> = {};
+  timeline.value.forEach(item => {
+    const dateStr = formatDate(item.createdAt);
+    if (!groups[dateStr]) {
+      groups[dateStr] = [];
+    }
+    groups[dateStr].push(item);
+  });
+  // Return as an array of [date, items] pairs, sorted chronologically
+  return Object.entries(groups).sort((a, b) => {
+      // Convert date strings back to Date objects for comparison
+      const dateA = new Date(a[0]);
+      const dateB = new Date(b[0]);
+      return dateA.getTime() - dateB.getTime();
+  });
+});
+
+// Function to scroll to the bottom of the chat timeline
+const scrollToBottom = async () => {
+  await nextTick(); // Wait for DOM update
+  const timelineEl = chatTimelineRef.value;
+  if (timelineEl) {
+    timelineEl.scrollTop = timelineEl.scrollHeight;
+  }
+};
+
+const submitMessage = async () => {
+  const messageText = newMessage.value.trim();
+  if (!messageText) return;
+
+  const { type, content } = parseMessage(messageText);
+
+  if (!content) {
+      console.warn("Cannot submit empty content after command.");
+      return; // Don't submit if only command was typed
+  }
+
+  const newItem: NewTimelineItem = {
+    type: type,
+    content: content,
+    // createdAt will be set by default in the database
+  };
+
+  try {
+    console.log('Saving item:', newItem);
+    await db.insert(timelineItems).values(newItem);
+    console.log('Item saved successfully.');
+    newMessage.value = ''; // Clear input
+    await loadTimeline(); // Reload timeline to show the new item
+  } catch (error) {
+    console.error('Error saving timeline item:', error);
+    // Optionally: Show an error message to the user
+  }
 };
 
 const loadTimeline = async () => {
-  console.log('Loading timeline...');
-  // TODO: Fetch items from DB and populate timeline ref
-  // Example:
-  // const items = await db.select().from(timelineItems).orderBy(desc(timelineItems.createdAt)).limit(50);
-  // timeline.value = items; // Need processing for display (group by date, etc.)
+  console.log('Loading timeline from database...');
+  try {
+    // Fetch items, order by creation date ascending for correct display order
+    const items = await db.select()
+                          .from(timelineItems)
+                          // Order by ID ascending as a proxy for creation time if defaultNow() precision varies
+                          // Or rely on createdAt if precision is sufficient
+                          .orderBy(timelineItems.id)
+                          // .orderBy(asc(timelineItems.createdAt)) // Alternative if timestamps are reliable
+                          // .limit(100); // Optional: Limit the number of items loaded
+                          ;
+    timeline.value = items;
+    console.log(`Loaded ${items.length} items.`);
+    await scrollToBottom(); // Scroll to bottom after loading
+  } catch (error) {
+    console.error('Error loading timeline items:', error);
+    // Handle potential errors, e.g., table not found if migrations didn't run
+    if (error instanceof Error && error.message.includes('no such table')) {
+        console.warn("Timeline table not found. Ensure migrations have been applied.");
+        // Optionally, attempt to run migration SQL here if feasible,
+        // but ideally migrations are handled by drizzle-kit apply/push.
+    }
+    timeline.value = []; // Clear timeline on error
+  }
 };
 
-// Load timeline when the component mounts
-onMounted(() => {
-  // PGlite needs to run client-side
+// Load timeline when the component mounts client-side
+onMounted(async () => {
+  // PGlite/IndexedDB only works in the browser
   if (process.client) {
-    loadTimeline();
+    // Ensure DB client is ready before loading. PGlite constructor is async.
+    // We might need a more robust way to await PGlite readiness if it causes issues.
+    // For now, assume the import initializes it sufficiently before mount completes.
+    await loadTimeline();
   }
 });
 
