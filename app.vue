@@ -32,18 +32,45 @@
         <p v-else>Loading timeline...</p>
       </div>
       <div class="chat-input-area">
-        <textarea
-          id="chat-input"
-          :placeholder="
+        <!-- Wrap textarea in Popover components -->
+        <Popover v-model:open="showCommandPopover">
+          <PopoverAnchor as-child>
+            <textarea
+              ref="textareaRef"
+              id="chat-input"
+              :placeholder="
             isDbReady
               ? 'Type your message or command (@task, @spend, @event)...'
               : 'Initializing database...'
           "
-          v-model="newMessage"
-          @keydown.meta.enter.prevent="submitMessage"
-          @keydown.ctrl.enter.prevent="submitMessage"
-          :disabled="!isDbReady"
-        ></textarea>
+              v-model="newMessage"
+              @keydown.meta.enter.prevent="submitMessage"
+              @keydown.ctrl.enter.prevent="submitMessage"
+              @keydown="handleCommandPopoverKeys"
+              :disabled="!isDbReady"
+            ></textarea>
+          </PopoverAnchor>
+          <PopoverContent
+            class="command-popover"
+            side="top"
+            align="start"
+            :side-offset="5"
+            @close-auto-focus="(e) => e.preventDefault()"
+          >
+            <!-- Prevent focus shift on close -->
+            <ul v-if="filteredCommands.length > 0">
+              <li
+                v-for="(command, index) in filteredCommands"
+                :key="command"
+                :class="{ selected: index === selectedCommandIndex }"
+                @click="selectCommand(command)"
+              >
+                @{{ command }}
+              </li>
+            </ul>
+            <div v-else>No matching commands</div>
+          </PopoverContent>
+        </Popover>
         <button
           id="submit-button"
           @click="submitMessage"
@@ -57,7 +84,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick } from "vue";
+import { ref, onMounted, computed, nextTick, watch } from "vue";
+import { Popover, PopoverAnchor, PopoverContent } from "@rekajs/vue";
 // Import the IndexedDB service functions and type
 import {
   addItem,
@@ -66,21 +94,30 @@ import {
 } from "./src/services/indexedDB";
 
 // Define item types (can be reused from schema or defined here)
-const itemTypes = ["task", "spend", "event", "default"] as const;
-type ItemType = (typeof itemTypes)[number];
+const allItemTypes = ["task", "spend", "event", "default"] as const;
+type ItemType = (typeof allItemTypes)[number];
+// Filter out 'default' for command suggestions
+const commandTypes = allItemTypes.filter((t) => t !== "default");
 
-// Define reactive refs
+// --- Reactive Refs ---
 const newMessage = ref("");
+const textareaRef = ref<HTMLTextAreaElement | null>(null); // Ref for the textarea element
 // No longer need db ref, but keep isDbReady to track IndexedDB connection
 const isDbReady = ref(false); // State to track DB initialization
 const timeline = ref<TimelineItemRecord[]>([]); // Use the IndexedDB record type
 const chatTimelineRef = ref<HTMLElement | null>(null); // Ref for scrolling
 
+// --- Command Popover State ---
+const showCommandPopover = ref(false);
+const commandQuery = ref("");
+const filteredCommands = ref<string[]>([]);
+const selectedCommandIndex = ref(-1); // For keyboard navigation
+
 // Helper function to parse message type and content
 function parseMessage(message: string): { type: ItemType; content: string } {
   const trimmedMessage = message.trim();
-  for (const type of itemTypes) {
-    if (type === "default") continue; // Skip default type check
+  // Use commandTypes for parsing prefixes
+  for (const type of commandTypes) {
     const prefix = `@${type} `;
     if (trimmedMessage.startsWith(prefix)) {
       return { type, content: trimmedMessage.substring(prefix.length) };
@@ -196,6 +233,97 @@ const loadTimeline = async () => {
     timeline.value = []; // Clear timeline on error
   }
 };
+
+// --- Command Popover Logic ---
+
+// Watch for changes in the input message to trigger the popover
+watch(newMessage, (newValue) => {
+  const cursorPosition = textareaRef.value?.selectionStart ?? newValue.length;
+  const textBeforeCursor = newValue.substring(0, cursorPosition);
+  const atIndex = textBeforeCursor.lastIndexOf("@");
+  const spaceAfterAtIndex = newValue.indexOf(" ", atIndex);
+
+  // Check if cursor is right after '@' or within the potential command word
+  if (
+    atIndex !== -1 &&
+    (spaceAfterAtIndex === -1 || cursorPosition <= spaceAfterAtIndex) &&
+    !/\s/.test(newValue.substring(atIndex + 1, cursorPosition)) // No space between @ and cursor
+  ) {
+    const query = newValue.substring(atIndex + 1, cursorPosition).toLowerCase();
+    commandQuery.value = query;
+    filteredCommands.value = commandTypes.filter((cmd) =>
+      cmd.startsWith(query)
+    );
+    if (filteredCommands.value.length > 0) {
+      showCommandPopover.value = true;
+      selectedCommandIndex.value = -1; // Reset selection
+    } else {
+      showCommandPopover.value = false;
+    }
+  } else {
+    showCommandPopover.value = false;
+  }
+});
+
+// Function to select a command from the popover
+const selectCommand = (command: string) => {
+  const currentMessage = newMessage.value;
+  const cursorPosition = textareaRef.value?.selectionStart ?? currentMessage.length;
+  const textBeforeCursor = currentMessage.substring(0, cursorPosition);
+  const atIndex = textBeforeCursor.lastIndexOf("@");
+
+  if (atIndex !== -1) {
+    const textAfterCursor = currentMessage.substring(cursorPosition);
+    // Replace from '@' up to the cursor with the selected command + space
+    newMessage.value =
+      currentMessage.substring(0, atIndex) +
+      `@${command} ` +
+      textAfterCursor;
+
+    // Move cursor after the inserted command + space
+    nextTick(() => {
+      const newCursorPosition = atIndex + command.length + 2; // @ + command + space
+      textareaRef.value?.focus();
+      textareaRef.value?.setSelectionRange(newCursorPosition, newCursorPosition);
+    });
+  }
+  showCommandPopover.value = false;
+};
+
+// Handle keyboard navigation within the popover
+const handleCommandPopoverKeys = (event: KeyboardEvent) => {
+  if (!showCommandPopover.value) return;
+
+  switch (event.key) {
+    case "ArrowDown":
+      event.preventDefault();
+      selectedCommandIndex.value =
+        (selectedCommandIndex.value + 1) % filteredCommands.value.length;
+      break;
+    case "ArrowUp":
+      event.preventDefault();
+      selectedCommandIndex.value =
+        (selectedCommandIndex.value - 1 + filteredCommands.value.length) %
+        filteredCommands.value.length;
+      break;
+    case "Enter":
+    case "Tab": // Use Tab for selection as well?
+      if (selectedCommandIndex.value !== -1) {
+        event.preventDefault();
+        selectCommand(filteredCommands.value[selectedCommandIndex.value]);
+      } else {
+         // If no command is selected via arrows, maybe select the first one on Enter?
+         // Or just close the popover. Let's close for now.
+         showCommandPopover.value = false;
+      }
+      break;
+    case "Escape":
+      event.preventDefault();
+      showCommandPopover.value = false;
+      break;
+  }
+};
+
 
 // Load timeline when the component mounts client-side
 onMounted(async () => {
@@ -374,6 +502,40 @@ body {
     &:hover {
       background-color: darken($button-bg, 10%);
     }
+  }
+}
+
+/* Styles for the command popover */
+.command-popover {
+  background-color: white;
+  border: 1px solid $border-color;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 5px 0;
+  min-width: 100px;
+  z-index: 10; /* Ensure it appears above other elements */
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  li {
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 0.9em;
+
+    &:hover,
+    &.selected {
+      background-color: $primary-bg;
+    }
+  }
+
+  div { /* Style for 'No matching commands' */
+    padding: 5px 10px;
+    font-size: 0.9em;
+    color: $date-color;
   }
 }
 </style>
