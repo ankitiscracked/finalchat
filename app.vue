@@ -85,7 +85,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick, watch } from "vue";
-import { Popover, PopoverAnchor, PopoverContent } from "@rekajs/vue";
+// Reka UI components (Popover, PopoverAnchor, PopoverContent) are now auto-imported via Nuxt module
 // Import the IndexedDB service functions and type
 import {
   addItem,
