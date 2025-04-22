@@ -1,5 +1,6 @@
 <template>
-  <div class="app-container"> <!-- Added a wrapper for potential global layout -->
+  <div class="app-container">
+    <!-- Added a wrapper for potential global layout -->
     <div class="chat-container">
       <div class="chat-timeline" id="chat-timeline" ref="chatTimelineRef">
         <!-- Iterate over grouped timeline items -->
@@ -16,20 +17,28 @@
               </span>
               <div class="item-content">
                 {{ item.content }}
-                <span class="item-timestamp">{{ formatTime(item.createdAt) }}</span>
+                <span class="item-timestamp">{{
+                  formatTime(item.createdAt)
+                }}</span>
               </div>
             </div>
           </div>
         </template>
         <!-- Show message if timeline is empty -->
-        <p v-else-if="!timeline.length">Your timeline is empty. Add items below!</p>
+        <p v-else-if="!timeline.length">
+          Your timeline is empty. Add items below!
+        </p>
         <!-- Keep loading text only initially -->
         <p v-else>Loading timeline...</p>
       </div>
       <div class="chat-input-area">
         <textarea
           id="chat-input"
-          :placeholder="isDbReady ? 'Type your message or command (@task, @spend, @event)...' : 'Initializing database...'"
+          :placeholder="
+            isDbReady
+              ? 'Type your message or command (@task, @spend, @event)...'
+              : 'Initializing database...'
+          "
           v-model="newMessage"
           @keydown.meta.enter.prevent="submitMessage"
           @keydown.ctrl.enter.prevent="submitMessage"
@@ -40,7 +49,7 @@
           @click="submitMessage"
           :disabled="!isDbReady"
         >
-          {{ isDbReady ? 'Submit' : 'Loading...' }}
+          {{ isDbReady ? "Submit" : "Loading..." }}
         </button>
       </div>
     </div>
@@ -48,16 +57,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick } from 'vue';
+import { ref, onMounted, computed, nextTick } from "vue";
 // Import the IndexedDB service functions and type
-import { addItem, getAllItems, type TimelineItemRecord } from '~/services/indexedDB';
+import {
+  addItem,
+  getAllItems,
+  type TimelineItemRecord,
+} from "./src/services/indexedDB";
 
 // Define item types (can be reused from schema or defined here)
-const itemTypes = ['task', 'spend', 'event', 'default'] as const;
-type ItemType = typeof itemTypes[number];
+const itemTypes = ["task", "spend", "event", "default"] as const;
+type ItemType = (typeof itemTypes)[number];
 
 // Define reactive refs
-const newMessage = ref('');
+const newMessage = ref("");
 // No longer need db ref, but keep isDbReady to track IndexedDB connection
 const isDbReady = ref(false); // State to track DB initialization
 const timeline = ref<TimelineItemRecord[]>([]); // Use the IndexedDB record type
@@ -67,50 +80,54 @@ const chatTimelineRef = ref<HTMLElement | null>(null); // Ref for scrolling
 function parseMessage(message: string): { type: ItemType; content: string } {
   const trimmedMessage = message.trim();
   for (const type of itemTypes) {
-    if (type === 'default') continue; // Skip default type check
+    if (type === "default") continue; // Skip default type check
     const prefix = `@${type} `;
     if (trimmedMessage.startsWith(prefix)) {
       return { type, content: trimmedMessage.substring(prefix.length) };
     }
   }
   // If no command prefix matches, treat as default message
-  return { type: 'default', content: trimmedMessage };
+  return { type: "default", content: trimmedMessage };
 }
 
 // Helper function to format date
 function formatDate(date: Date | null): string {
-  if (!date) return '';
+  if (!date) return "";
   return date.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
 }
 
 // Helper function to format time
 function formatTime(date: Date | null): string {
-    if (!date) return '';
-    return date.toLocaleTimeString(undefined, {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true // Use true or false based on preference
-    });
+  if (!date) return "";
+  return date.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true, // Use true or false based on preference
+  });
 }
 
 // Helper to get icon class based on type
 function getIconClass(type: ItemType): string {
-    switch (type) {
-        case 'task': return 'fa-solid fa-list-check';
-        case 'spend': return 'fa-solid fa-dollar-sign';
-        case 'event': return 'fa-solid fa-calendar-day';
-        default: return 'fa-solid fa-message';
-    }
+  switch (type) {
+    case "task":
+      return "fa-solid fa-list-check";
+    case "spend":
+      return "fa-solid fa-dollar-sign";
+    case "event":
+      return "fa-solid fa-calendar-day";
+    default:
+      return "fa-solid fa-message";
+  }
 }
 
 // Computed property to group timeline items by date
 const groupedTimeline = computed(() => {
   const groups: Record<string, TimelineItemRecord[]> = {}; // Use TimelineItemRecord
-  timeline.value.forEach(item => {
+  timeline.value.forEach((item) => {
     const dateStr = formatDate(item.createdAt);
     if (!groups[dateStr]) {
       groups[dateStr] = [];
@@ -119,10 +136,10 @@ const groupedTimeline = computed(() => {
   });
   // Return as an array of [date, items] pairs, sorted chronologically
   return Object.entries(groups).sort((a, b) => {
-      // Convert date strings back to Date objects for comparison
-      const dateA = new Date(a[0]);
-      const dateB = new Date(b[0]);
-      return dateA.getTime() - dateB.getTime();
+    // Convert date strings back to Date objects for comparison
+    const dateA = new Date(a[0]);
+    const dateB = new Date(b[0]);
+    return dateA.getTime() - dateB.getTime();
   });
 });
 
@@ -142,32 +159,32 @@ const submitMessage = async () => {
   const { type, content } = parseMessage(messageText);
 
   if (!content) {
-      console.warn("Cannot submit empty content after command.");
-      return; // Don't submit if only command was typed
+    console.warn("Cannot submit empty content after command.");
+    return; // Don't submit if only command was typed
   }
 
   // Create item for IndexedDB (id is auto-generated, createdAt defaults in addItem)
-  const newItem: Omit<TimelineItemRecord, 'id' | 'createdAt'> = {
+  const newItem: Omit<TimelineItemRecord, "id" | "createdAt"> = {
     type: type,
     content: content,
   };
 
   try {
-    console.log('Saving item to IndexedDB:', newItem);
+    console.log("Saving item to IndexedDB:", newItem);
     // Use the addItem service function
     await addItem(newItem);
-    console.log('Item saved successfully.');
-    newMessage.value = ''; // Clear input
+    console.log("Item saved successfully.");
+    newMessage.value = ""; // Clear input
     await loadTimeline(); // Reload timeline to show the new item
   } catch (error) {
-    console.error('Error saving timeline item to IndexedDB:', error);
+    console.error("Error saving timeline item to IndexedDB:", error);
     // Optionally: Show an error message to the user
   }
 };
 
 const loadTimeline = async () => {
   // isDbReady check is implicitly handled by getDbPromise inside getAllItems
-  console.log('Loading timeline from IndexedDB...');
+  console.log("Loading timeline from IndexedDB...");
   try {
     // Use the getAllItems service function
     const items = await getAllItems();
@@ -175,7 +192,7 @@ const loadTimeline = async () => {
     console.log(`Loaded ${items.length} items from IndexedDB.`);
     await scrollToBottom(); // Scroll to bottom after loading
   } catch (error) {
-    console.error('Error loading timeline items from IndexedDB:', error);
+    console.error("Error loading timeline items from IndexedDB:", error);
     timeline.value = []; // Clear timeline on error
   }
 };
@@ -185,7 +202,9 @@ onMounted(async () => {
   // IndexedDB only works in the browser
   if (process.client) {
     try {
-      console.log("Component mounted client-side, initializing IndexedDB connection...");
+      console.log(
+        "Component mounted client-side, initializing IndexedDB connection..."
+      );
       // Trigger DB opening/creation by calling a function that uses getDbPromise
       // We don't need to store the DB instance itself here anymore.
       // Calling getAllItems also ensures the DB is opened/ready.
@@ -194,9 +213,9 @@ onMounted(async () => {
       console.log("IndexedDB connection ready, loading timeline...");
       await loadTimeline(); // Now load the timeline
     } catch (error) {
-        console.error("Failed to initialize IndexedDB:", error);
-        isDbReady.value = false; // Ensure DB is marked as not ready on error
-        // Optionally show an error message to the user in the UI
+      console.error("Failed to initialize IndexedDB:", error);
+      isDbReady.value = false; // Ensure DB is marked as not ready on error
+      // Optionally show an error message to the user in the UI
     }
   }
 });
@@ -226,14 +245,11 @@ $default-color: #6c757d; // Gray
 
 // Apply base styles globally (consider putting in nuxt.config or a global css file)
 body {
-    margin: 0;
-    font-family: sans-serif;
-    background-color: $primary-bg;
-    display: flex; // Use flex on the body/app container if needed
-    justify-content: center;
-    align-items: flex-start; // Align to top
-    min-height: 100vh;
-    padding-top: 5vh; // Add some space at the top
+  margin: 0;
+  font-family: sans-serif;
+  background-color: $primary-bg;
+  min-height: 100vh;
+  padding-top: 5vh; // Add some space at the top
 }
 
 // Scoped styles could be used if preferred, but these are mostly layout
@@ -244,113 +260,120 @@ body {
 }
 
 .chat-container {
-    width: 40%;
-    min-width: 350px; // Minimum width for smaller screens
-    max-width: 800px; // Maximum width
-    background-color: $container-bg;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    display: flex;
-    flex-direction: column;
-    height: 80vh; // Fixed height for the container
-    overflow: hidden; // Hide overflow from children
+  width: 40%;
+  min-width: 500px; // Minimum width for smaller screens
+  background-color: $container-bg;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  height: 80vh; // Fixed height for the container
+  overflow: hidden; // Hide overflow from children
 }
 
 .chat-timeline {
-    flex-grow: 1;
-    overflow-y: auto; // Allow scrolling for timeline content
-    padding: 20px;
-    border-bottom: 1px solid $border-color;
+  flex-grow: 1;
+  overflow-y: auto; // Allow scrolling for timeline content
+  padding: 20px;
+  border-bottom: 1px solid $border-color;
 
-    .date-separator {
-        text-align: center;
-        margin: 15px 0;
-        color: $date-color;
-        font-size: 0.9em;
-        font-weight: bold;
+  .date-separator {
+    text-align: center;
+    margin: 15px 0;
+    color: $date-color;
+    font-size: 0.9em;
+    font-weight: bold;
+  }
+
+  .timeline-item {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 15px;
+    padding: 10px;
+    border-radius: 5px;
+    background-color: $primary-bg; // Slight background for items
+
+    .item-icon {
+      margin-right: 10px;
+      font-size: 1.2em;
+      width: 20px; // Fixed width for alignment
+      text-align: center;
+      // Font Awesome icons will be added here based on type
     }
 
-    .timeline-item {
-        display: flex;
-        align-items: flex-start;
-        margin-bottom: 15px;
-        padding: 10px;
-        border-radius: 5px;
-        background-color: $primary-bg; // Slight background for items
-
-        .item-icon {
-            margin-right: 10px;
-            font-size: 1.2em;
-            width: 20px; // Fixed width for alignment
-            text-align: center;
-            // Font Awesome icons will be added here based on type
-        }
-
-        .item-content {
-            flex-grow: 1;
-            color: $text-color;
-            word-wrap: break-word; // Ensure long words break
-        }
-
-        .item-timestamp {
-            font-size: 0.8em;
-            color: $date-color;
-            margin-top: 5px;
-            display: block; // Ensure it appears below content
-        }
-
-        // Type-specific styles
-        &.item-task {
-            border-left: 4px solid $task-color;
-            .item-icon { color: $task-color; }
-        }
-        &.item-spend {
-            border-left: 4px solid $spend-color;
-            .item-icon { color: $spend-color; }
-        }
-        &.item-event {
-            border-left: 4px solid $event-color;
-            .item-icon { color: $event-color; }
-        }
-        &.item-default {
-             border-left: 4px solid $default-color;
-            .item-icon { color: $default-color; }
-        }
+    .item-content {
+      flex-grow: 1;
+      color: $text-color;
+      word-wrap: break-word; // Ensure long words break
     }
+
+    .item-timestamp {
+      font-size: 0.8em;
+      color: $date-color;
+      margin-top: 5px;
+      display: block; // Ensure it appears below content
+    }
+
+    // Type-specific styles
+    &.item-task {
+      border-left: 4px solid $task-color;
+      .item-icon {
+        color: $task-color;
+      }
+    }
+    &.item-spend {
+      border-left: 4px solid $spend-color;
+      .item-icon {
+        color: $spend-color;
+      }
+    }
+    &.item-event {
+      border-left: 4px solid $event-color;
+      .item-icon {
+        color: $event-color;
+      }
+    }
+    &.item-default {
+      border-left: 4px solid $default-color;
+      .item-icon {
+        color: $default-color;
+      }
+    }
+  }
 }
 
 .chat-input-area {
-    display: flex;
-    padding: 15px;
-    background-color: $primary-bg; // Match item background
+  display: flex;
+  padding: 15px;
+  background-color: $primary-bg; // Match item background
 
-    textarea {
-        flex-grow: 1;
-        padding: 10px;
-        border: 1px solid $border-color;
-        border-radius: 4px;
-        resize: none; // Prevent manual resizing
-        margin-right: 10px;
-        font-family: inherit;
-        font-size: 1em;
-        min-height: 40px; // Minimum height
-        max-height: 120px; // Maximum height before scrolling
-        overflow-y: auto; // Allow scrolling if text exceeds max-height
+  textarea {
+    flex-grow: 1;
+    padding: 10px;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+    resize: none; // Prevent manual resizing
+    margin-right: 10px;
+    font-family: inherit;
+    font-size: 1em;
+    min-height: 40px; // Minimum height
+    max-height: 120px; // Maximum height before scrolling
+    overflow-y: auto; // Allow scrolling if text exceeds max-height
+  }
+
+  button {
+    padding: 10px 15px;
+    background-color: $button-bg;
+    color: $button-text;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: background-color 0.2s ease;
+
+    &:hover {
+      background-color: darken($button-bg, 10%);
     }
-
-    button {
-        padding: 10px 15px;
-        background-color: $button-bg;
-        color: $button-text;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 1em;
-        transition: background-color 0.2s ease;
-
-        &:hover {
-            background-color: darken($button-bg, 10%);
-        }
-    }
+  }
 }
 </style>
