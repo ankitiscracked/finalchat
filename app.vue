@@ -32,45 +32,30 @@
         <p v-else>Loading timeline...</p>
       </div>
       <div class="chat-input-area">
-        <!-- Wrap textarea in Popover components -->
-        <PopoverRoot v-model:open="showCommandPopover">
-          <PopoverAnchor as-child>
-            <textarea
-              ref="textareaRef"
-              id="chat-input"
-              :placeholder="
-                isDbReady
-                  ? 'Type your message or command (@task, @spend, @event)...'
-                  : 'Initializing database...'
-              "
-              v-model="newMessage"
-              @keydown.meta.enter.prevent="submitMessage"
-              @keydown.ctrl.enter.prevent="submitMessage"
-              @keydown="handleCommandPopoverKeys"
-              :disabled="!isDbReady"
-            ></textarea>
-          </PopoverAnchor>
-          <PopoverContent
-            class="command-popover"
-            side="top"
-            align="start"
-            :side-offset="5"
-            @close-auto-focus="(e) => e.preventDefault()"
+        <div class="input-wrapper">
+          <textarea
+            ref="textareaRef"
+            id="chat-input"
+            :placeholder="
+              isDbReady
+                ? 'Type your message or command (@task, @spend, @event)...'
+                : 'Initializing database...'
+            "
+            v-model="newMessage"
+            @keydown.meta.enter.prevent="submitMessage"
+            @keydown.ctrl.enter.prevent="submitMessage"
+            @keydown.tab.prevent="completeCommand"
+            @keydown="handleKeyDown"
+            :disabled="!isDbReady"
+          ></textarea>
+          <div 
+            v-if="suggestionText" 
+            class="suggestion-overlay"
+            :style="{ left: `${cursorPosition}px` }"
           >
-            <!-- Prevent focus shift on close -->
-            <ul v-if="filteredCommands.length > 0">
-              <li
-                v-for="(command, index) in filteredCommands"
-                :key="command"
-                :class="{ selected: index === selectedCommandIndex }"
-                @click="selectCommand(command)"
-              >
-                @{{ command }}
-              </li>
-            </ul>
-            <div v-else>No matching commands</div>
-          </PopoverContent>
-        </PopoverRoot>
+            <span class="suggestion-text">{{ suggestionText }}</span>
+          </div>
+        </div>
         <button
           id="submit-button"
           @click="submitMessage"
@@ -85,7 +70,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick, watch } from "vue";
-// Reka UI components (Popover, PopoverAnchor, PopoverContent) are now auto-imported via Nuxt module
 // Import the IndexedDB service functions and type
 import {
   addItem,
@@ -102,16 +86,13 @@ const commandTypes = allItemTypes.filter((t) => t !== "default");
 // --- Reactive Refs ---
 const newMessage = ref("");
 const textareaRef = ref<HTMLTextAreaElement | null>(null); // Ref for the textarea element
-// No longer need db ref, but keep isDbReady to track IndexedDB connection
 const isDbReady = ref(false); // State to track DB initialization
 const timeline = ref<TimelineItemRecord[]>([]); // Use the IndexedDB record type
 const chatTimelineRef = ref<HTMLElement | null>(null); // Ref for scrolling
 
-// --- Command Popover State ---
-const showCommandPopover = ref(false);
-const commandQuery = ref("");
-const filteredCommands = ref<string[]>([]);
-const selectedCommandIndex = ref(-1); // For keyboard navigation
+// --- Command Suggestion State ---
+const suggestionText = ref(""); // Text to show as suggestion
+const cursorPosition = ref(0); // Horizontal position for suggestion overlay
 
 // Helper function to parse message type and content
 function parseMessage(message: string): { type: ItemType; content: string } {
@@ -125,6 +106,13 @@ function parseMessage(message: string): { type: ItemType; content: string } {
   }
   // If no command prefix matches, treat as default message
   return { type: "default", content: trimmedMessage };
+}
+
+// Function to format the message with styled commands
+// This is a placeholder for future enhancement to style commands in the input
+function formatMessageWithCommands(message: string): string {
+  // This would be implemented to wrap @commands in spans with the command-text class
+  return message;
 }
 
 // Helper function to format date
@@ -234,95 +222,118 @@ const loadTimeline = async () => {
   }
 };
 
-// --- Command Popover Logic ---
+// --- Command Suggestion Logic ---
 
-// Watch for changes in the input message to trigger the popover
+// Watch for changes in the input message to update suggestion
 watch(newMessage, (newValue) => {
-  const cursorPosition = textareaRef.value?.selectionStart ?? newValue.length;
-  const textBeforeCursor = newValue.substring(0, cursorPosition);
-  const atIndex = textBeforeCursor.lastIndexOf("@");
-  const spaceAfterAtIndex = newValue.indexOf(" ", atIndex);
-
-  // Check if cursor is right after '@' or within the potential command word
-  if (
-    atIndex !== -1 &&
-    (spaceAfterAtIndex === -1 || cursorPosition <= spaceAfterAtIndex) &&
-    !/\s/.test(newValue.substring(atIndex + 1, cursorPosition)) // No space between @ and cursor
-  ) {
-    const query = newValue.substring(atIndex + 1, cursorPosition).toLowerCase();
-    commandQuery.value = query;
-    filteredCommands.value = commandTypes.filter((cmd) =>
-      cmd.startsWith(query)
-    );
-    if (filteredCommands.value.length > 0) {
-      showCommandPopover.value = true;
-      selectedCommandIndex.value = -1; // Reset selection
-    } else {
-      showCommandPopover.value = false;
-    }
-  } else {
-    showCommandPopover.value = false;
-  }
+  updateSuggestion();
 });
 
-// Function to select a command from the popover
-const selectCommand = (command: string) => {
+// Update the suggestion text based on current input and cursor position
+const updateSuggestion = () => {
+  if (!textareaRef.value) return;
+  
   const currentMessage = newMessage.value;
-  const cursorPosition =
-    textareaRef.value?.selectionStart ?? currentMessage.length;
-  const textBeforeCursor = currentMessage.substring(0, cursorPosition);
+  const cursorPos = textareaRef.value.selectionStart;
+  const textBeforeCursor = currentMessage.substring(0, cursorPos);
   const atIndex = textBeforeCursor.lastIndexOf("@");
-
-  if (atIndex !== -1) {
-    const textAfterCursor = currentMessage.substring(cursorPosition);
-    // Replace from '@' up to the cursor with the selected command + space
-    newMessage.value =
-      currentMessage.substring(0, atIndex) + `@${command} ` + textAfterCursor;
-
-    // Move cursor after the inserted command + space
-    nextTick(() => {
-      const newCursorPosition = atIndex + command.length + 2; // @ + command + space
-      textareaRef.value?.focus();
-      textareaRef.value?.setSelectionRange(
-        newCursorPosition,
-        newCursorPosition
-      );
-    });
+  const spaceAfterAtIndex = textBeforeCursor.indexOf(" ", atIndex);
+  
+  // Check if we're typing a command (after @ but before a space)
+  if (
+    atIndex !== -1 && 
+    (spaceAfterAtIndex === -1 || spaceAfterAtIndex > cursorPos) &&
+    !/\s/.test(textBeforeCursor.substring(atIndex + 1)) // No space between @ and cursor
+  ) {
+    const partialCommand = textBeforeCursor.substring(atIndex + 1).toLowerCase();
+    
+    // Find matching command
+    const matchingCommand = commandTypes.find(cmd => 
+      cmd.startsWith(partialCommand) && cmd !== partialCommand
+    );
+    
+    if (matchingCommand) {
+      // Only suggest the remaining part of the command
+      suggestionText.value = matchingCommand.substring(partialCommand.length);
+      
+      // Calculate position for the suggestion overlay
+      // This is a simplified approach - might need adjustment based on font metrics
+      const textWidth = getTextWidth(textBeforeCursor, textareaRef.value);
+      cursorPosition.value = textWidth;
+    } else {
+      suggestionText.value = "";
+    }
+  } else {
+    suggestionText.value = "";
   }
-  showCommandPopover.value = false;
 };
 
-// Handle keyboard navigation within the popover
-const handleCommandPopoverKeys = (event: KeyboardEvent) => {
-  if (!showCommandPopover.value) return;
+// Helper to estimate text width for positioning the suggestion
+const getTextWidth = (text: string, element: HTMLElement): number => {
+  // Create a temporary span to measure text
+  const span = document.createElement('span');
+  span.style.font = window.getComputedStyle(element).font;
+  span.style.visibility = 'hidden';
+  span.style.position = 'absolute';
+  span.style.whiteSpace = 'pre';
+  span.textContent = text;
+  document.body.appendChild(span);
+  const width = span.getBoundingClientRect().width;
+  document.body.removeChild(span);
+  return width;
+};
 
-  switch (event.key) {
-    case "ArrowDown":
-      event.preventDefault();
-      selectedCommandIndex.value =
-        (selectedCommandIndex.value + 1) % filteredCommands.value.length;
-      break;
-    case "ArrowUp":
-      event.preventDefault();
-      selectedCommandIndex.value =
-        (selectedCommandIndex.value - 1 + filteredCommands.value.length) %
-        filteredCommands.value.length;
-      break;
-    case "Enter":
-    case "Tab": // Use Tab for selection as well?
-      if (selectedCommandIndex.value !== -1) {
-        event.preventDefault();
-        selectCommand(filteredCommands.value[selectedCommandIndex.value]);
-      } else {
-        // If no command is selected via arrows, maybe select the first one on Enter?
-        // Or just close the popover. Let's close for now.
-        showCommandPopover.value = false;
+// Complete the command when Tab is pressed
+const completeCommand = () => {
+  if (suggestionText.value) {
+    const currentMessage = newMessage.value;
+    const cursorPos = textareaRef.value?.selectionStart ?? currentMessage.length;
+    const textBeforeCursor = currentMessage.substring(0, cursorPos);
+    const textAfterCursor = currentMessage.substring(cursorPos);
+    const atIndex = textBeforeCursor.lastIndexOf("@");
+    const partialCommand = textBeforeCursor.substring(atIndex + 1);
+    
+    // Complete the command
+    const fullCommand = partialCommand + suggestionText.value;
+    newMessage.value = 
+      currentMessage.substring(0, atIndex) + 
+      `@${fullCommand}` + 
+      textAfterCursor;
+    
+    // Move cursor after the completed command
+    nextTick(() => {
+      const newCursorPos = atIndex + fullCommand.length + 1; // +1 for @
+      textareaRef.value?.focus();
+      textareaRef.value?.setSelectionRange(newCursorPos, newCursorPos);
+      suggestionText.value = ""; // Clear suggestion
+      
+      // Add a space after the command if there isn't one already
+      if (newMessage.value[newCursorPos] !== ' ') {
+        newMessage.value = 
+          newMessage.value.substring(0, newCursorPos) + 
+          ' ' + 
+          newMessage.value.substring(newCursorPos);
+        
+        // Move cursor after the space
+        nextTick(() => {
+          textareaRef.value?.setSelectionRange(newCursorPos + 1, newCursorPos + 1);
+        });
       }
-      break;
-    case "Escape":
-      event.preventDefault();
-      showCommandPopover.value = false;
-      break;
+    });
+  }
+};
+
+// Handle keyboard events
+const handleKeyDown = (event: KeyboardEvent) => {
+  // Update suggestion on any key press
+  nextTick(() => {
+    updateSuggestion();
+  });
+  
+  // Handle special keys if needed
+  if (event.key === 'Escape' && suggestionText.value) {
+    event.preventDefault();
+    suggestionText.value = "";
   }
 };
 
@@ -366,6 +377,8 @@ $input-bg: #ffffff;
 $button-bg: #007bff;
 $button-text: #ffffff;
 $date-color: #888;
+$suggestion-color: #cccccc;
+$command-color: #007bff;
 
 $task-color: #ffc107; // Amber
 $spend-color: #dc3545; // Red
@@ -476,18 +489,36 @@ body {
   padding: 15px;
   background-color: $primary-bg; // Match item background
 
-  textarea {
+  .input-wrapper {
+    position: relative;
     flex-grow: 1;
+    margin-right: 10px;
+  }
+
+  textarea {
+    width: 100%;
     padding: 10px;
     border: 1px solid $border-color;
     border-radius: 4px;
     resize: none; // Prevent manual resizing
-    margin-right: 10px;
     font-family: inherit;
     font-size: 1em;
     min-height: 40px; // Minimum height
     max-height: 120px; // Maximum height before scrolling
     overflow-y: auto; // Allow scrolling if text exceeds max-height
+  }
+
+  .suggestion-overlay {
+    position: absolute;
+    top: 10px; // Match textarea padding
+    pointer-events: none; // Allow clicks to pass through to textarea
+    white-space: pre; // Preserve spaces
+    
+    .suggestion-text {
+      color: $suggestion-color;
+      font-family: inherit;
+      font-size: 1em;
+    }
   }
 
   button {
@@ -506,38 +537,11 @@ body {
   }
 }
 
-/* Styles for the command popover */
-.command-popover {
-  background-color: white;
-  border: 1px solid $border-color;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  padding: 5px 0;
-  min-width: 100px;
-  z-index: 10; /* Ensure it appears above other elements */
-
-  ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-
-  li {
-    padding: 5px 10px;
-    cursor: pointer;
-    font-size: 0.9em;
-
-    &:hover,
-    &.selected {
-      background-color: $primary-bg;
-    }
-  }
-
-  div {
-    /* Style for 'No matching commands' */
-    padding: 5px 10px;
-    font-size: 0.9em;
-    color: $date-color;
-  }
+// Style for completed commands in the textarea
+// This requires a custom directive or component to apply styling to parts of text
+// For now, we'll add this CSS that can be used with a future enhancement
+.command-text {
+  color: $command-color;
+  font-weight: bold;
 }
 </style>
