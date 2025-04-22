@@ -34,6 +34,17 @@
             </span>
             <div class="item-content">
               {{ item.content }}
+              
+              <!-- Show project for tasks with projectId -->
+              <span v-if="item.type === 'task' && item.projectId" class="item-project">
+                in <span class="project-tag">#{{ getProjectName(item.projectId) }}</span>
+              </span>
+              
+              <!-- Show collection for notes and events with collectionId -->
+              <span v-if="(item.type === 'event' || item.type === 'default') && item.collectionId" class="item-collection">
+                in <span class="collection-tag">@{{ getCollectionName(item.collectionId) }}</span>
+              </span>
+              
               <span class="item-timestamp">{{ formatTime(item.createdAt) }}</span>
             </div>
           </div>
@@ -72,8 +83,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { TimelineItemRecord } from '../services/indexedDB';
+import { computed, ref, onMounted } from 'vue';
+import { 
+  type TimelineItemRecord, 
+  type ProjectRecord, 
+  type CollectionRecord,
+  getAllProjects,
+  getAllCollections
+} from '../services/indexedDB';
 
 // Define props
 const props = defineProps<{
@@ -126,6 +143,36 @@ function getIconClass(type: string): string {
 // Helper to capitalize first letter
 function capitalizeFirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// Projects and collections state
+const projects = ref<ProjectRecord[]>([]);
+const collections = ref<CollectionRecord[]>([]);
+
+// Load projects and collections from IndexedDB
+onMounted(async () => {
+  try {
+    const [projectsData, collectionsData] = await Promise.all([
+      getAllProjects(),
+      getAllCollections()
+    ]);
+    projects.value = projectsData;
+    collections.value = collectionsData;
+  } catch (error) {
+    console.error('Error loading data:', error);
+  }
+});
+
+// Function to get project name by ID
+function getProjectName(projectId: number): string {
+  const project = projects.value.find(p => p.id === projectId);
+  return project ? project.name : 'Unknown Project';
+}
+
+// Function to get collection name by ID
+function getCollectionName(collectionId: number): string {
+  const collection = collections.value.find(c => c.id === collectionId);
+  return collection ? collection.name : 'Unknown Collection';
 }
 
 // Group items by date
@@ -293,6 +340,29 @@ $ai-color: $orange-600;
       word-wrap: break-word;
       font-size: 0.95rem;
       line-height: 1.4;
+    }
+    
+    .item-project, .item-collection {
+      font-size: 0.8rem;
+      color: $gray-600;
+      margin-top: 4px;
+      display: block;
+    }
+    
+    .item-project .project-tag {
+      background-color: rgba($orange-200, 0.7);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: $orange-700;
+      font-weight: 500;
+    }
+    
+    .item-collection .collection-tag {
+      background-color: rgba($orange-300, 0.7);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: $orange-800;
+      font-weight: 500;
     }
     
     .item-timestamp {
