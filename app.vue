@@ -33,16 +33,16 @@
       </div>
       <div class="chat-input-area">
         <!-- Wrap textarea in Popover components -->
-        <Popover v-model:open="showCommandPopover">
+        <PopoverRoot v-model:open="showCommandPopover">
           <PopoverAnchor as-child>
             <textarea
               ref="textareaRef"
               id="chat-input"
               :placeholder="
-            isDbReady
-              ? 'Type your message or command (@task, @spend, @event)...'
-              : 'Initializing database...'
-          "
+                isDbReady
+                  ? 'Type your message or command (@task, @spend, @event)...'
+                  : 'Initializing database...'
+              "
               v-model="newMessage"
               @keydown.meta.enter.prevent="submitMessage"
               @keydown.ctrl.enter.prevent="submitMessage"
@@ -70,7 +70,7 @@
             </ul>
             <div v-else>No matching commands</div>
           </PopoverContent>
-        </Popover>
+        </PopoverRoot>
         <button
           id="submit-button"
           @click="submitMessage"
@@ -268,7 +268,8 @@ watch(newMessage, (newValue) => {
 // Function to select a command from the popover
 const selectCommand = (command: string) => {
   const currentMessage = newMessage.value;
-  const cursorPosition = textareaRef.value?.selectionStart ?? currentMessage.length;
+  const cursorPosition =
+    textareaRef.value?.selectionStart ?? currentMessage.length;
   const textBeforeCursor = currentMessage.substring(0, cursorPosition);
   const atIndex = textBeforeCursor.lastIndexOf("@");
 
@@ -276,15 +277,16 @@ const selectCommand = (command: string) => {
     const textAfterCursor = currentMessage.substring(cursorPosition);
     // Replace from '@' up to the cursor with the selected command + space
     newMessage.value =
-      currentMessage.substring(0, atIndex) +
-      `@${command} ` +
-      textAfterCursor;
+      currentMessage.substring(0, atIndex) + `@${command} ` + textAfterCursor;
 
     // Move cursor after the inserted command + space
     nextTick(() => {
       const newCursorPosition = atIndex + command.length + 2; // @ + command + space
       textareaRef.value?.focus();
-      textareaRef.value?.setSelectionRange(newCursorPosition, newCursorPosition);
+      textareaRef.value?.setSelectionRange(
+        newCursorPosition,
+        newCursorPosition
+      );
     });
   }
   showCommandPopover.value = false;
@@ -312,9 +314,9 @@ const handleCommandPopoverKeys = (event: KeyboardEvent) => {
         event.preventDefault();
         selectCommand(filteredCommands.value[selectedCommandIndex.value]);
       } else {
-         // If no command is selected via arrows, maybe select the first one on Enter?
-         // Or just close the popover. Let's close for now.
-         showCommandPopover.value = false;
+        // If no command is selected via arrows, maybe select the first one on Enter?
+        // Or just close the popover. Let's close for now.
+        showCommandPopover.value = false;
       }
       break;
     case "Escape":
@@ -323,7 +325,6 @@ const handleCommandPopoverKeys = (event: KeyboardEvent) => {
       break;
   }
 };
-
 
 // Load timeline when the component mounts client-side
 onMounted(async () => {
@@ -532,7 +533,8 @@ body {
     }
   }
 
-  div { /* Style for 'No matching commands' */
+  div {
+    /* Style for 'No matching commands' */
     padding: 5px 10px;
     font-size: 0.9em;
     color: $date-color;
