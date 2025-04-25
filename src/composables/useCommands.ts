@@ -34,6 +34,19 @@ export function useCommands() {
         return { type, content: trimmedMessage.substring(prefix.length) };
       }
     }
+
+    if (message.startsWith("/delete")) {
+      return { type: "delete", content: message.substring(7).trim() };
+    }
+
+    if (message.startsWith("/move-to")) {
+      return { type: "move-to", content: message.substring(8).trim() };
+    }
+
+    if (message.startsWith("/edit")) {
+      return { type: "edit", content: message.substring(5).trim() };
+    }
+
     // If no command prefix matches, treat as a note
     return { type: "note", content: trimmedMessage };
   }

@@ -58,6 +58,15 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "message-submitted"): void;
+  (
+    e: "delete-tasks",
+    payload: { selectedTasks: any[]; currentTaskId: number }
+  ): void;
+  (
+    e: "move-tasks",
+    payload: { selectedTasks: any[]; currentTaskId: number; newState: string }
+  ): void;
+  (e: "edit-task", payload: { taskId: number; newContent: string }): void;
 }>();
 
 // Refs
@@ -152,6 +161,27 @@ const submitMessage = async () => {
   if (!content) {
     console.warn("Cannot submit empty content after command.");
     return; // Don't submit if only command was typed
+  }
+
+  // Handle delete command
+  if (type === "delete") {
+    // Handle deletion of selected or focused tasks
+    emit("delete-tasks", { selectedTasks, currentTaskId });
+    return;
+  }
+
+  // Handle move-to command
+  if (type === "move-to") {
+    // Handle moving tasks to a new state
+    emit("move-tasks", { selectedTasks, currentTaskId, newState: content });
+    return;
+  }
+
+  // Handle edit command
+  if (type === "edit") {
+    // Handle editing of a task
+    emit("edit-task", { taskId: currentTaskId, newContent: content });
+    return;
   }
 
   // Check for project in task content
