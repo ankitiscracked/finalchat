@@ -1,5 +1,8 @@
 <template>
-  <div class="collection-popover" :style="{ top: `${position.top}px`, left: `${position.left}px` }">
+  <div
+    class="collection-popover"
+    :style="{ top: `${position.top}px`, left: `${position.left}px` }"
+  >
     <div class="popover-header">
       <input
         ref="inputRef"
@@ -12,12 +15,12 @@
         @keydown.down="navigateList(1)"
       />
     </div>
-    
+
     <div v-if="isLoading" class="loading-indicator">
       <div class="spinner"></div>
       <span>Loading collections...</span>
     </div>
-    
+
     <div v-else class="collection-list">
       <div
         v-for="(collection, index) in filteredCollections"
@@ -31,20 +34,29 @@
         </span>
         <span class="collection-name">{{ collection.name }}</span>
       </div>
-      
+
       <div
         v-if="showCreateOption"
-        :class="['create-item', { active: selectedIndex === filteredCollections.length }]"
+        :class="[
+          'create-item',
+          { active: selectedIndex === filteredCollections.length },
+        ]"
         @click="createCollection"
         @mouseover="selectedIndex = filteredCollections.length"
       >
         <span class="create-icon">
           <i class="ph-bold ph-plus-circle"></i>
         </span>
-        <span class="create-text">Create "<strong>{{ searchQuery }}</strong>"</span>
+        <span class="create-text"
+          >Create "<strong>{{ searchQuery }}</strong
+          >"</span
+        >
       </div>
-      
-      <div v-if="filteredCollections.length === 0 && !showCreateOption" class="no-results">
+
+      <div
+        v-if="filteredCollections.length === 0 && !showCreateOption"
+        class="no-results"
+      >
         No collections found. Type to create a new one.
       </div>
     </div>
@@ -52,10 +64,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick, computed, watch } from 'vue';
-import { getAllCollections, type CollectionRecord } from '../../services/indexedDB';
-import { createCollection } from '../../services/collectionService';
-
 // Props
 const props = defineProps<{
   position: { top: number; left: number };
@@ -63,24 +71,28 @@ const props = defineProps<{
 
 // Emits
 const emit = defineEmits<{
-  (e: 'close'): void;
-  (e: 'select', collection: CollectionRecord): void;
-  (e: 'create', collection: CollectionRecord): void;
+  (e: "close"): void;
+  (e: "select", collection: CollectionRecord): void;
+  (e: "create", collection: CollectionRecord): void;
 }>();
 
 // Refs
 const inputRef = ref<HTMLInputElement | null>(null);
 const collections = ref<CollectionRecord[]>([]);
 const filteredCollections = ref<CollectionRecord[]>([]);
-const searchQuery = ref('');
+const searchQuery = ref("");
 const selectedIndex = ref(0);
 const isLoading = ref(true);
 
 // Computed
 const showCreateOption = computed(() => {
   const trimmedQuery = searchQuery.value.trim();
-  return trimmedQuery.length > 0 && 
-         !collections.value.some(c => c.name.toLowerCase() === trimmedQuery.toLowerCase());
+  return (
+    trimmedQuery.length > 0 &&
+    !collections.value.some(
+      (c) => c.name.toLowerCase() === trimmedQuery.toLowerCase()
+    )
+  );
 });
 
 // Load collections when component mounts
@@ -92,14 +104,14 @@ onMounted(async () => {
         inputRef.value.focus();
       }
     });
-    
+
     // Load collections
     collections.value = await getAllCollections();
     filteredCollections.value = [...collections.value];
-    
+
     isLoading.value = false;
   } catch (error) {
-    console.error('Error loading collections:', error);
+    console.error("Error loading collections:", error);
     isLoading.value = false;
   }
 });
@@ -112,19 +124,19 @@ watch(searchQuery, () => {
 // Filter collections based on search query
 function filterCollections() {
   const query = searchQuery.value.trim().toLowerCase();
-  filteredCollections.value = collections.value.filter(
-    collection => collection.name.toLowerCase().includes(query)
+  filteredCollections.value = collections.value.filter((collection) =>
+    collection.name.toLowerCase().includes(query)
   );
 }
 
 // Navigate list with keyboard
 function navigateList(direction: number) {
-  const maxIndex = showCreateOption.value 
-    ? filteredCollections.value.length 
+  const maxIndex = showCreateOption.value
+    ? filteredCollections.value.length
     : filteredCollections.value.length - 1;
-  
+
   selectedIndex.value += direction;
-  
+
   // Wrap around
   if (selectedIndex.value < 0) {
     selectedIndex.value = maxIndex;
@@ -135,12 +147,15 @@ function navigateList(direction: number) {
 
 // Select collection
 function selectCollection(collection: CollectionRecord) {
-  emit('select', collection);
+  emit("select", collection);
 }
 
 // Select or create based on current selection
 function selectOrCreateCollection() {
-  if (filteredCollections.value.length === 0 || selectedIndex.value === filteredCollections.value.length) {
+  if (
+    filteredCollections.value.length === 0 ||
+    selectedIndex.value === filteredCollections.value.length
+  ) {
     createCollection();
   } else {
     selectCollection(filteredCollections.value[selectedIndex.value]);
@@ -151,19 +166,19 @@ function selectOrCreateCollection() {
 async function createCollection() {
   const name = searchQuery.value.trim();
   if (!name) return;
-  
+
   try {
     const newCollection = await createCollection(name);
     collections.value.push(newCollection);
-    emit('create', newCollection);
+    emit("create", newCollection);
   } catch (error) {
-    console.error('Error creating collection:', error);
+    console.error("Error creating collection:", error);
   }
 }
 </script>
 
 <style lang="scss" scoped>
-@import "../../../styles/main.scss";
+@import "../../styles/main.scss";
 
 $border-color: $gray-300;
 $popover-bg: $white;
@@ -183,18 +198,18 @@ $accent-bg: rgba($orange-100, 0.5);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   z-index: 1000;
   overflow: hidden;
-  
+
   .popover-header {
     padding: 10px;
     border-bottom: 1px solid $border-color;
-    
+
     input {
       width: 100%;
       padding: 8px 12px;
       border: 1px solid $border-color;
       border-radius: 6px;
       font-size: 0.9rem;
-      
+
       &:focus {
         outline: none;
         border-color: $accent-color;
@@ -202,7 +217,7 @@ $accent-bg: rgba($orange-100, 0.5);
       }
     }
   }
-  
+
   .loading-indicator {
     display: flex;
     align-items: center;
@@ -210,7 +225,7 @@ $accent-bg: rgba($orange-100, 0.5);
     padding: 20px;
     color: $secondary-text;
     font-size: 0.9rem;
-    
+
     .spinner {
       width: 18px;
       height: 18px;
@@ -220,17 +235,19 @@ $accent-bg: rgba($orange-100, 0.5);
       margin-right: 10px;
       animation: spin 0.8s linear infinite;
     }
-    
+
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
   }
-  
+
   .collection-list {
     max-height: 220px;
     overflow-y: auto;
     padding: 5px 0;
-    
+
     .collection-item,
     .create-item {
       display: flex;
@@ -239,15 +256,15 @@ $accent-bg: rgba($orange-100, 0.5);
       cursor: pointer;
       font-size: 0.9rem;
       color: $text-color;
-      
+
       &:hover {
         background-color: $hover-bg;
       }
-      
+
       &.active {
         background-color: $accent-bg;
       }
-      
+
       .collection-icon,
       .create-icon {
         margin-right: 10px;
@@ -258,13 +275,13 @@ $accent-bg: rgba($orange-100, 0.5);
         color: $accent-color;
       }
     }
-    
+
     .create-item {
       border-top: 1px solid $border-color;
       color: $accent-color;
       font-weight: 500;
     }
-    
+
     .no-results {
       padding: 15px;
       text-align: center;

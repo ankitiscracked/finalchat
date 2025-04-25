@@ -13,14 +13,20 @@
             <i :class="getIconClass(item.type)" class="message-icon"></i>
             <div class="message-text">
               {{ item.content }}
-              
+
               <!-- Show project for tasks with project -->
-              <span v-if="item.type === 'task' && item.projectId" class="message-project">
+              <span
+                v-if="item.type === 'task' && item.projectId"
+                class="message-project"
+              >
                 <template v-if="getProjectNameWrapper(item.projectId)">
-                  in <span class="project-tag">#{{ getProjectNameWrapper(item.projectId) }}</span>
+                  in
+                  <span class="project-tag"
+                    >#{{ getProjectNameWrapper(item.projectId) }}</span
+                  >
                 </template>
               </span>
-              
+
               <span class="message-timestamp">{{
                 formatTime(item.createdAt)
               }}</span>
@@ -39,11 +45,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, nextTick } from 'vue';
-import type { TimelineItemRecord } from '../../services/indexedDB';
-import { formatDate, formatTime, getIconClass, groupItemsByDate } from '../../services/timelineService';
-import { getProjectName } from '../../services/projectService';
-
 const props = defineProps<{
   timeline: TimelineItemRecord[];
   projects: any[];
@@ -72,12 +73,12 @@ const scrollToBottom = async () => {
 
 // Expose functions to parent
 defineExpose({
-  scrollToBottom
+  scrollToBottom,
 });
 </script>
 
 <style lang="scss" scoped>
-@import "../../../styles/main.scss";
+@import "../../styles/main.scss";
 
 // Colors from main app
 $primary-bg: $gray-100;
@@ -111,7 +112,8 @@ $message-default-accent: $gray-700;
     padding: 5px 0;
   }
 
-  .empty-chat, .loading-chat {
+  .empty-chat,
+  .loading-chat {
     text-align: center;
     color: $gray-600;
     margin-top: 40px;
@@ -121,81 +123,84 @@ $message-default-accent: $gray-700;
     display: flex;
     margin-bottom: 15px;
     max-width: 85%;
-    
-    &.message-default, &.message-note {
+
+    &.message-default,
+    &.message-note {
       margin-left: auto; // Right aligned
       .message-content {
         background-color: $message-default-bg;
         border-radius: 18px 18px 4px 18px;
-        
+
         .message-icon {
           color: $message-default-accent;
         }
       }
     }
-    
-    &.message-task, &.message-spend, &.message-event {
+
+    &.message-task,
+    &.message-spend,
+    &.message-event {
       margin-right: auto; // Left aligned
-      
+
       .message-content {
         border-radius: 18px 18px 18px 4px;
       }
     }
-    
+
     &.message-task {
       .message-content {
         background-color: $message-task-bg;
-        
+
         .message-icon {
           color: $message-task-accent;
         }
       }
     }
-    
+
     &.message-spend {
       .message-content {
         background-color: $message-spend-bg;
-        
+
         .message-icon {
           color: $message-spend-accent;
         }
       }
     }
-    
+
     &.message-event {
       .message-content {
         background-color: $message-event-bg;
-        
+
         .message-icon {
           color: $message-event-accent;
         }
       }
     }
-    
+
     .message-content {
       padding: 12px 16px;
       display: flex;
       gap: 8px;
       align-items: flex-start;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-      
+
       .message-icon {
         font-size: 1.2rem;
         margin-top: 2px;
       }
-      
+
       .message-text {
         color: $text-color;
         word-wrap: break-word; // Ensure long words break
         font-size: 0.95rem;
         line-height: 1.4;
-        
+
         .message-project {
           font-size: 0.8rem;
           color: $gray-600;
           margin-top: 4px;
           display: block;
-          
+
           .project-tag {
             background-color: rgba($orange-200, 0.7);
             padding: 2px 6px;
@@ -204,7 +209,7 @@ $message-default-accent: $gray-700;
             font-weight: 500;
           }
         }
-        
+
         .message-timestamp {
           font-size: 0.75rem;
           color: $gray-500;

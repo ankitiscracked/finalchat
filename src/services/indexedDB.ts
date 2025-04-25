@@ -12,6 +12,7 @@ export interface TimelineItemRecord {
     createdAt: Date;
     projectId?: number; // Optional reference to a project
     collectionId?: number; // Optional reference to a collection
+    status?: 'todo' | 'in-progress' | 'done'; // Status for tasks
 }
 
 // Define the structure of our projects in IndexedDB
@@ -131,6 +132,48 @@ export async function getAllItems(): Promise<TimelineItemRecord[]> {
         request.onerror = () => {
             console.error("Error getting items from IndexedDB:", request.error);
             reject(new Error(`Error getting items: ${request.error}`));
+        };
+    });
+}
+
+export async function updateItem(item: TimelineItemRecord): Promise<void> {
+    if (!item.id) {
+        throw new Error("Cannot update item without ID");
+    }
+    
+    const db = await getDbPromise();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.put(item);
+
+        request.onsuccess = () => {
+            console.log("Item updated successfully in IndexedDB, ID:", item.id);
+            resolve();
+        };
+
+        request.onerror = () => {
+            console.error("Error updating item in IndexedDB:", request.error);
+            reject(new Error(`Error updating item: ${request.error}`));
+        };
+    });
+}
+
+export async function deleteItem(itemId: number): Promise<void> {
+    const db = await getDbPromise();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.delete(itemId);
+
+        request.onsuccess = () => {
+            console.log("Item deleted successfully from IndexedDB, ID:", itemId);
+            resolve();
+        };
+
+        request.onerror = () => {
+            console.error("Error deleting item from IndexedDB:", request.error);
+            reject(new Error(`Error deleting item: ${request.error}`));
         };
     });
 }

@@ -6,7 +6,7 @@
         id="chat-input"
         :placeholder="
           isDbReady
-            ? 'Type your message or command (/task, /spend, /event, /show, /ai-overview, /close-overview)...'
+            ? 'Type your message or command (/task, /spend, /event, /show, /ai-overview, /canvas, /close-overview)...'
             : 'Initializing database...'
         "
         v-model="newMessage"
@@ -17,14 +17,12 @@
         @input="handleInput"
         :disabled="!isDbReady"
       ></textarea>
-      <div 
-        v-if="suggestionText" 
-        class="suggestion-overlay"
-      >
-        <span class="typed-part">{{ getTypedPart() }}</span><span class="suggestion-part">{{ suggestionText }}</span>
+      <div v-if="suggestionText" class="suggestion-overlay">
+        <span class="typed-part">{{ getTypedPart() }}</span
+        ><span class="suggestion-part">{{ suggestionText }}</span>
         <div class="suggestion-hint">hit Tab to complete</div>
       </div>
-      
+
       <!-- Project Popover -->
       <ProjectPopover
         v-if="showProjectPopover"
@@ -33,7 +31,7 @@
         @select="selectProject"
         @create="selectProject"
       />
-      
+
       <!-- Collection Popover -->
       <CollectionPopover
         v-if="showCollectionPopover"
@@ -43,25 +41,13 @@
         @create="selectCollection"
       />
     </div>
-    <button
-      id="submit-button"
-      @click="submitMessage"
-      :disabled="!isDbReady"
-    >
+    <button id="submit-button" @click="submitMessage" :disabled="!isDbReady">
       <i class="ph-bold ph-paper-plane-right"></i>
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue';
-import ProjectPopover from '../project/ProjectPopover.vue';
-import CollectionPopover from '../collection/CollectionPopover.vue';
-import { useSuggestions } from '../../composables/useSuggestions';
-import { useProjects } from '../../composables/useProjects';
-import { useCollections } from '../../composables/useCollections';
-import { submitTimelineItem } from '../../services/timelineService';
-
 const props = defineProps<{
   isDbReady: boolean;
   commandTypes: string[];
@@ -71,7 +57,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'message-submitted'): void;
+  (e: "message-submitted"): void;
 }>();
 
 // Refs
@@ -89,7 +75,7 @@ const {
   checkForProjectTag,
   closeProjectPopover,
   selectProject,
-  extractProjectFromContent: extractProject
+  extractProjectFromContent: extractProject,
 } = useProjects(textareaRef, newMessage);
 
 // Extract collection handling from composable
@@ -101,39 +87,40 @@ const {
   checkForCollectionTag,
   closeCollectionPopover,
   selectCollection,
-  extractCollectionFromContent: extractCollection
+  extractCollectionFromContent: extractCollection,
 } = useCollections(textareaRef, newMessage);
 
 // Extract suggestion handling from composable
-const {
-  suggestionText,
-  updateSuggestion,
-  completeCommand,
-  getTypedPart
-} = useSuggestions(textareaRef, newMessage, props.commandTypes, props.specialCommands);
+const { suggestionText, updateSuggestion, completeCommand, getTypedPart } =
+  useSuggestions(
+    textareaRef,
+    newMessage,
+    props.commandTypes,
+    props.specialCommands
+  );
 
 // Handle keyboard events
 const handleKeyDown = (event: KeyboardEvent) => {
   // Update suggestion on any key press
   updateSuggestion();
-  
+
   // Handle special keys if needed
-  if (event.key === 'Escape' && suggestionText.value) {
+  if (event.key === "Escape" && suggestionText.value) {
     event.preventDefault();
     suggestionText.value = "";
   }
-  
+
   // If it's the # key, check for project tag immediately (don't wait for input event)
-  if (event.key === '#') {
+  if (event.key === "#") {
     console.log("# key pressed");
     // Use nextTick to let the character appear in the textarea first
     nextTick(() => {
       checkForProjectTag();
     });
   }
-  
+
   // If it's the @ key, check for collection tag immediately
-  if (event.key === '@') {
+  if (event.key === "@") {
     console.log("@ key pressed");
     // Use nextTick to let the character appear in the textarea first
     nextTick(() => {
@@ -166,73 +153,85 @@ const submitMessage = async () => {
     console.warn("Cannot submit empty content after command.");
     return; // Don't submit if only command was typed
   }
-  
+
   // Check for project in task content
   let cleanContent = content;
   let projectId: number | undefined = undefined;
   let collectionId: number | undefined = undefined;
-  
+
   // Extract project from the content if it's a task
-  if (type === 'task') {
+  if (type === "task") {
     // Look for "in #project-name" pattern at the end
     const projectMatch = content.match(/\s+in\s+#(\S+)$/i);
     if (projectMatch && projectMatch[1]) {
       const projectName = projectMatch[1];
-      
+
       // Find project by name
-      const project = projects.value.find(p => p.name.toLowerCase() === projectName.toLowerCase());
+      const project = projects.value.find(
+        (p) => p.name.toLowerCase() === projectName.toLowerCase()
+      );
       if (project) {
         projectId = project.id;
         // Remove the project tag from the content
-        cleanContent = content.substring(0, content.length - projectMatch[0].length).trim();
+        cleanContent = content
+          .substring(0, content.length - projectMatch[0].length)
+          .trim();
       }
     }
   }
-  
+
   // Extract collection from the content if it's a note or event
-  if (type === 'event' || type === 'note' || type === 'default') {
+  if (type === "event" || type === "note" || type === "default") {
     // Look for "in @collection-name" pattern at the end
     const collectionMatch = cleanContent.match(/\s+in\s+@(\S+)$/i);
     if (collectionMatch && collectionMatch[1]) {
       const collectionName = collectionMatch[1];
-      
+
       // Find collection by name
-      const collection = collections.value.find(c => c.name.toLowerCase() === collectionName.toLowerCase());
+      const collection = collections.value.find(
+        (c) => c.name.toLowerCase() === collectionName.toLowerCase()
+      );
       if (collection) {
         collectionId = collection.id;
         // Remove the collection tag from the content
-        cleanContent = cleanContent.substring(0, cleanContent.length - collectionMatch[0].length).trim();
+        cleanContent = cleanContent
+          .substring(0, cleanContent.length - collectionMatch[0].length)
+          .trim();
       }
     }
   }
 
   try {
-    console.log("Saving item to IndexedDB:", { type, content: cleanContent, projectId });
-    
+    console.log("Saving item to IndexedDB:", {
+      type,
+      content: cleanContent,
+      projectId,
+    });
+
     // Increment message counter
     messageCounter.value++;
-    
+
     // Increment date offset every 5 messages
     if (messageCounter.value % 5 === 0) {
       currentDateOffset.value++;
     }
-    
+
     // Submit through the service
     await submitTimelineItem(
-      type, 
-      cleanContent, 
+      type,
+      cleanContent,
       projectId,
-      collectionId, 
+      collectionId,
       currentDateOffset.value
     );
-    
+
     console.log("Item saved successfully.");
     newMessage.value = ""; // Clear input
     currentProject.value = null; // Reset current project
     currentCollection.value = null; // Reset current collection
-    
+
     // Notify parent that message was submitted
-    emit('message-submitted');
+    emit("message-submitted");
   } catch (error) {
     console.error("Error saving timeline item to IndexedDB:", error);
     // Optionally: Show an error message to the user
@@ -241,7 +240,7 @@ const submitMessage = async () => {
 </script>
 
 <style lang="scss" scoped>
-@import "../../../styles/main.scss";
+@import "../../styles/main.scss";
 
 // App theme colors
 $border-color: $gray-300;
@@ -267,13 +266,13 @@ $suggestion-color: $gray-400;
     border: 1px solid $border-color;
     border-radius: 18px;
     resize: none; // Prevent manual resizing
-    font-family: 'Inter', sans-serif;
+    font-family: "Inter", sans-serif;
     font-size: 0.95rem;
     min-height: 48px; // Minimum height
     max-height: 120px; // Maximum height before scrolling
     overflow-y: auto; // Allow scrolling if text exceeds max-height
     transition: border-color 0.2s ease;
-    
+
     &:focus {
       outline: none;
       border-color: $accent-color;
@@ -286,18 +285,18 @@ $suggestion-color: $gray-400;
     top: 12px; // Match textarea padding
     left: 15px; // Match textarea padding
     pointer-events: none; // Allow clicks to pass through to textarea
-    
+
     .typed-part {
-      font-family: 'Inter', sans-serif;
+      font-family: "Inter", sans-serif;
       font-size: 0.95rem;
     }
-    
+
     .suggestion-part {
       color: $suggestion-color;
-      font-family: 'Inter', sans-serif;
+      font-family: "Inter", sans-serif;
       font-size: 0.95rem;
     }
-    
+
     .suggestion-hint {
       position: absolute;
       top: 100%;
@@ -330,7 +329,7 @@ $suggestion-color: $gray-400;
     &:hover {
       background-color: $accent-dark;
     }
-    
+
     &:disabled {
       background-color: $gray-400;
       cursor: not-allowed;

@@ -21,7 +21,9 @@ export async function submitTimelineItem(
     type: type as any,
     content: content,
     projectId,
-    collectionId
+    collectionId,
+    // Initialize status for tasks
+    ...(type === 'task' ? { status: 'todo' as const } : {})
   };
   
   // Add to database
