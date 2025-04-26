@@ -1,25 +1,15 @@
 import { ref, computed, onMounted, nextTick, type Ref } from "vue";
 import type { TimelineItemRecord } from "../services/indexedDB";
 
-export interface FocusState {
-  isActive: boolean;
-  currentIndex: number;
-  currentTaskId: number | null;
-}
-
 export function useFocusable(
   items: Ref<TimelineItemRecord[]>,
   chatInputRef: Ref<HTMLTextAreaElement | null>
 ) {
+  const { selectedTasks, toggleTaskSelection, focusState } = useTaskSelection();
   // Focus state
-  const focusState = ref<FocusState>({
-    isActive: false,
-    currentIndex: -1,
-    currentTaskId: null,
-  });
 
-  // TaskRefs for direct DOM manipulation
-  const taskRefs = ref<HTMLElement[]>([]);
+  // Initialize taskRefs with a proper type to allow undefined values
+  const taskRefs = ref<(HTMLElement | undefined)[]>([]);
 
   // Set refs for all task items
   const setTaskRef = (el: HTMLElement | null, index: number) => {
@@ -111,7 +101,7 @@ export function useFocusable(
     });
   };
 
-  // Handle keyboard events for task navigation
+  // Handle keyboard events for task navigation and selection
   const handleTaskKeydown = (event: KeyboardEvent) => {
     if (!focusState.value.isActive) return;
 
@@ -127,6 +117,12 @@ export function useFocusable(
       case "Escape":
         event.preventDefault();
         deactivateTaskFocus();
+        break;
+      case "Enter":
+        event.preventDefault();
+        if (focusState.value.currentTaskId !== null) {
+          toggleTaskSelection(focusState.value.currentTaskId);
+        }
         break;
       case "a":
         // Trigger the actions popover
@@ -147,5 +143,6 @@ export function useFocusable(
     navigateTasks,
     deactivateTaskFocus,
     handleTaskKeydown,
+    selectedTasks,
   };
 }

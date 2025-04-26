@@ -42,25 +42,28 @@ export function useSuggestions(
       return;
     }
 
-    if (isFullCommand(textBeforeCursor, "show")) {
-      suggestFirstCommandType();
-      return;
-    }
+    // --- SUGGESTION LOGIC FOR TASK COMMANDS ---
+    // List of supported commands and their abbreviations
+    const commandAbbreviations = [
+      { full: "delete", abbr: "del" },
+      { full: "move-to", abbr: "mov" },
+      { full: "edit", abbr: "ed" },
+      { full: "show", abbr: "sho" },
+      { full: "ai-overview", abbr: "ai-ov" },
+    ];
 
-    if (isPartialCommand(textBeforeCursor, "show")) {
-      suggestMatchingCommandType(
-        textBeforeCursor,
-        commandPatterns.partialCommand("show")
-      );
-      return;
-    }
-
-    if (isPartialCommand(textBeforeCursor, "ai-overview")) {
-      suggestMatchingCommandType(
-        textBeforeCursor,
-        commandPatterns.partialCommand("ai-overview")
-      );
-      return;
+    for (const { full, abbr } of commandAbbreviations) {
+      if (isFullCommand(textBeforeCursor, full) || isFullCommand(textBeforeCursor, abbr)) {
+        suggestFirstCommandType();
+        return;
+      }
+      if (isPartialCommand(textBeforeCursor, full) || isPartialCommand(textBeforeCursor, abbr)) {
+        suggestMatchingCommandType(
+          textBeforeCursor,
+          commandPatterns.partialCommand(full)
+        );
+        return;
+      }
     }
 
     if (isTypingCommand(textBeforeCursor, cursorPos)) {
@@ -109,6 +112,22 @@ export function useSuggestions(
     const partialCommand = textBeforeCursor
       .substring(slashIndex + 1)
       .toLowerCase();
+
+    // Abbreviation support for task commands
+    const abbrMap = {
+      del: "delete",
+      mov: "move-to",
+      ed: "edit",
+      sho: "show",
+      "ai-ov": "ai-overview",
+    };
+    // If the user types an abbreviation, suggest the full command
+    for (const abbr in abbrMap) {
+      if (partialCommand.startsWith(abbr) && abbrMap[abbr] !== partialCommand) {
+        suggestionText.value = abbrMap[abbr].substring(partialCommand.length);
+        return;
+      }
+    }
 
     const matchingSpecialCommand = specialCommands.find(
       (cmd) => cmd.startsWith(partialCommand) && cmd !== partialCommand

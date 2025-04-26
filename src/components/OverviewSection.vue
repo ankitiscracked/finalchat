@@ -46,9 +46,18 @@
             "
             :tabindex="item.type === 'task' ? 0 : -1"
             @keydown="
-              item.type === 'task' ? handleTaskKeyPress($event, item) : null
+              item.type === 'task'
+                ? handleTaskKeyPress($event, item, idx)
+                : null
             "
           >
+            <div class="checkbox-wrapper">
+              <input
+                type="checkbox"
+                :checked="selectedTasks.includes(item.id)"
+                @change="toggleTaskSelection(item.id)"
+              />
+            </div>
             <span class="item-icon">
               <i :class="getIconClass(item.type)"></i>
             </span>
@@ -159,7 +168,12 @@ const props = defineProps<{
 }>();
 
 // Define emits
-const emit = defineEmits(["close", "changeMode", "refresh"]);
+const emit = defineEmits([
+  "close",
+  "changeMode",
+  "refresh",
+  "selection-changed",
+]);
 
 // All tasks from the items array
 const tasks = computed(() =>
@@ -185,10 +199,10 @@ function getTaskIndex(task: TimelineItemRecord): number {
 
   return taskIndexMap.value.get(task.id) ?? -1;
 }
+const { toggleTaskSelection, focusState } = useTaskSelection();
 
 // Focus management using our composable
 const {
-  focusState,
   taskRefs,
   setTaskRef,
   currentTask,
@@ -196,6 +210,7 @@ const {
   navigateTasks,
   deactivateTaskFocus,
   handleTaskKeydown,
+  selectedTasks,
 } = useFocusable(tasks, ref(props.chatInputRef));
 
 // Expose activateTaskFocus method to the parent component
@@ -257,8 +272,31 @@ const {
   deleteTask,
 } = useTaskActions(currentTask, refreshItems);
 
+// Expose selected tasks and focus state to parent/app
+watch(
+  () => ({
+    selectedTasks: selectedTasks.value,
+    focusedTaskId: focusState.currentTaskId,
+    focusActive: focusState.isActive,
+  }),
+  (val) => {
+    emit("selection-changed", val);
+  },
+  { deep: true }
+);
+
 // Handle key press on tasks
-function handleTaskKeyPress(event: KeyboardEvent, task: TimelineItemRecord) {
+function handleTaskKeyPress(
+  event: KeyboardEvent,
+  task: TimelineItemRecord,
+  idx: number
+) {
+  if (event.key === "Enter") {
+    toggleTaskSelection(task.id);
+    event.preventDefault();
+    return;
+  }
+
   // Directly check for the 'a' key first
   if (event.key === "a") {
     console.log("A key pressed on task", task);
@@ -423,7 +461,7 @@ $ai-color: $orange-600;
 
 .overview-section {
   background-color: $overview-bg;
-  border-radius: 12px;
+  border-radius: 4px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
@@ -436,7 +474,7 @@ $ai-color: $orange-600;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
+  padding: 10px 12px;
   border-bottom: 1px solid $border-color;
   background-color: $header-bg;
 
@@ -446,7 +484,7 @@ $ai-color: $orange-600;
 
     h2 {
       margin: 0;
-      font-size: 1.4rem;
+      font-size: 1rem;
       margin-right: 15px;
       font-weight: 600;
       color: $gray-800;
@@ -456,7 +494,7 @@ $ai-color: $orange-600;
       button {
         background-color: $white;
         border: 1px solid $border-color;
-        border-radius: 8px;
+        border-radius: 4px;
         padding: 6px 12px;
         font-size: 0.9rem;
         cursor: pointer;
@@ -518,9 +556,8 @@ $ai-color: $orange-600;
 
   .date-separator {
     text-align: center;
-    margin: 15px 0;
     color: $date-color;
-    font-size: 0.85rem;
+    font-size: 14px;
     font-weight: 600;
     padding: 5px 0;
   }
@@ -535,9 +572,13 @@ $ai-color: $orange-600;
     display: flex;
     align-items: flex-start;
     margin-bottom: 15px;
-    padding: 12px 16px;
-    border-radius: 10px;
+    padding: 8px 12px;
+    border-radius: 4px;
     background-color: $gray-100;
+
+    .checkbox-wrapper {
+      margin-right: 12px;
+    }
 
     .item-icon {
       margin-right: 12px;
@@ -551,7 +592,7 @@ $ai-color: $orange-600;
       flex-grow: 1;
       color: $text-color;
       word-wrap: break-word;
-      font-size: 0.95rem;
+      font-size: 14px;
       line-height: 1.4;
     }
 
@@ -568,6 +609,7 @@ $ai-color: $orange-600;
       padding: 2px 6px;
       border-radius: 4px;
       color: $orange-700;
+      font-size: 12px;
       font-weight: 500;
     }
 
@@ -580,7 +622,7 @@ $ai-color: $orange-600;
     }
 
     .item-timestamp {
-      font-size: 0.75rem;
+      font-size: 12px;
       color: $gray-500;
       margin-top: 5px;
       display: block;
@@ -589,11 +631,11 @@ $ai-color: $orange-600;
     // Task status styles
     .item-status {
       display: inline-block;
-      font-size: 0.75rem;
+      font-size: 12px;
       padding: 2px 6px;
       border-radius: 4px;
-      margin-top: 4px;
       font-weight: 500;
+      margin-left: 8px;
 
       &.status-todo {
         background-color: rgba($gray-300, 0.6);
@@ -620,7 +662,6 @@ $ai-color: $orange-600;
 
     // Type-specific styles
     &.item-task {
-      border-left: 4px solid $orange-500;
       .item-icon {
         color: $orange-500;
       }

@@ -33,10 +33,9 @@ $orange-900: #e65100;
 // Global styles
 body {
   font-family: 'Inter', sans-serif;
-  background-color: $gray-100;
+  background-color: #ECECEC;
   color: $gray-900;
   margin: 0;
-  min-height: 100vh;
 }
 
 // These styles can be imported in nuxt.config.ts

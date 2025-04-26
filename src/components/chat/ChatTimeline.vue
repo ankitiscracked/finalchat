@@ -102,10 +102,10 @@ $message-default-accent: $gray-700;
   padding: 20px;
   border-bottom: 1px solid $border-color;
   background-color: $primary-bg;
+  border-radius: 4px;
 
   .date-separator {
     text-align: center;
-    margin: 15px 0;
     color: $date-color;
     font-size: 0.85rem;
     font-weight: 600;
@@ -129,7 +129,7 @@ $message-default-accent: $gray-700;
       margin-left: auto; // Right aligned
       .message-content {
         background-color: $message-default-bg;
-        border-radius: 18px 18px 4px 18px;
+        border-radius: 8px 8px 0px 8px;
 
         .message-icon {
           color: $message-default-accent;
@@ -143,7 +143,7 @@ $message-default-accent: $gray-700;
       margin-right: auto; // Left aligned
 
       .message-content {
-        border-radius: 18px 18px 18px 4px;
+        border-radius: 8px 8px 0px 8px;
       }
     }
 
@@ -185,14 +185,14 @@ $message-default-accent: $gray-700;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 
       .message-icon {
-        font-size: 1.2rem;
+        font-size: 16px;
         margin-top: 2px;
       }
 
       .message-text {
         color: $text-color;
         word-wrap: break-word; // Ensure long words break
-        font-size: 0.95rem;
+        font-size: 14px;
         line-height: 1.4;
 
         .message-project {
@@ -218,6 +218,10 @@ $message-default-accent: $gray-700;
         }
       }
     }
+  }
+
+  .message-bubble:last-child {
+    margin-bottom: 0;
   }
 }
 </style>

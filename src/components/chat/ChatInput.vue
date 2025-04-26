@@ -6,7 +6,9 @@
         id="chat-input"
         :placeholder="
           isDbReady
-            ? 'Type your message or command (/task, /spend, /event, /show, /ai-overview, /canvas, /close-overview)...'
+            ? isEditing
+              ? 'Edit task and press Enter/Esc...'
+              : 'Type your message or command...'
             : 'Initializing database...'
         "
         v-model="newMessage"
@@ -21,6 +23,21 @@
         <span class="typed-part">{{ getTypedPart() }}</span
         ><span class="suggestion-part">{{ suggestionText }}</span>
         <div class="suggestion-hint">hit Tab to complete</div>
+      </div>
+      <div v-if="isEditing" class="editing-chip">
+        Editing task... (Press Enter to save, Esc to cancel)
+      </div>
+      <div v-if="showMoveToStateInput" class="move-to-state-chip">
+        Move to state:
+        <select v-model="moveToState">
+          <option
+            v-for="state in moveToStateOptions"
+            :key="state"
+            :value="state"
+          >
+            {{ state }}
+          </option>
+        </select>
       </div>
 
       <!-- Project Popover -->
@@ -41,8 +58,9 @@
         @create="selectCollection"
       />
     </div>
+
     <button id="submit-button" @click="submitMessage" :disabled="!isDbReady">
-      <i class="ph-bold ph-paper-plane-right"></i>
+      Send
     </button>
   </div>
 </template>
@@ -54,14 +72,16 @@ const props = defineProps<{
   specialCommands: string[];
   parseMessage: (message: string) => { type: string; content: string };
   handleSpecialCommands: (message: string) => boolean;
+  timelineItems: TimelineItemRecord[];
+  overviewType: string;
+  selectedTasks: number[];
+  focusedTaskId: number | null;
+  focusActive: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "message-submitted"): void;
-  (
-    e: "delete-tasks",
-    payload: { selectedTasks: any[]; currentTaskId: number }
-  ): void;
+  (e: "delete-tasks"): void;
   (
     e: "move-tasks",
     payload: { selectedTasks: any[]; currentTaskId: number; newState: string }
@@ -108,6 +128,10 @@ const { suggestionText, updateSuggestion, completeCommand, getTypedPart } =
     props.specialCommands
   );
 
+// Editing state
+const isEditing = ref(false);
+const editingTaskId = ref<number | null>(null);
+
 // Handle keyboard events
 const handleKeyDown = (event: KeyboardEvent) => {
   // Update suggestion on any key press
@@ -145,128 +169,82 @@ const handleInput = (event: Event) => {
   checkForCollectionTag();
 };
 
-// Submit a message
+// Handle commands
 const submitMessage = async () => {
   const messageText = newMessage.value.trim();
   if (!messageText) return;
 
-  // Check if it's a special command
   if (props.handleSpecialCommands(messageText)) {
-    newMessage.value = ""; // Clear input
+    newMessage.value = "";
     return;
   }
 
   const { type, content } = props.parseMessage(messageText);
 
-  if (!content) {
+  if (!content && type !== "edit") {
     console.warn("Cannot submit empty content after command.");
-    return; // Don't submit if only command was typed
-  }
-
-  // Handle delete command
-  if (type === "delete") {
-    // Handle deletion of selected or focused tasks
-    emit("delete-tasks", { selectedTasks, currentTaskId });
     return;
   }
 
-  // Handle move-to command
-  if (type === "move-to") {
-    // Handle moving tasks to a new state
-    emit("move-tasks", { selectedTasks, currentTaskId, newState: content });
-    return;
-  }
+  switch (type) {
+    case "delete":
+      emit("delete-tasks");
+      break;
 
-  // Handle edit command
-  if (type === "edit") {
-    // Handle editing of a task
-    emit("edit-task", { taskId: currentTaskId, newContent: content });
-    return;
-  }
-
-  // Check for project in task content
-  let cleanContent = content;
-  let projectId: number | undefined = undefined;
-  let collectionId: number | undefined = undefined;
-
-  // Extract project from the content if it's a task
-  if (type === "task") {
-    // Look for "in #project-name" pattern at the end
-    const projectMatch = content.match(/\s+in\s+#(\S+)$/i);
-    if (projectMatch && projectMatch[1]) {
-      const projectName = projectMatch[1];
-
-      // Find project by name
-      const project = projects.value.find(
-        (p) => p.name.toLowerCase() === projectName.toLowerCase()
-      );
-      if (project) {
-        projectId = project.id;
-        // Remove the project tag from the content
-        cleanContent = content
-          .substring(0, content.length - projectMatch[0].length)
-          .trim();
+    case "move-to":
+      if (
+        props.selectedTasks &&
+        props.selectedTasks.length > 0 &&
+        props.focusedTaskId !== null
+      ) {
+        emit("move-tasks", {
+          selectedTasks: props.selectedTasks,
+          currentTaskId: props.focusedTaskId as number,
+          newState: content,
+        });
       }
-    }
-  }
+      break;
 
-  // Extract collection from the content if it's a note or event
-  if (type === "event" || type === "note" || type === "default") {
-    // Look for "in @collection-name" pattern at the end
-    const collectionMatch = cleanContent.match(/\s+in\s+@(\S+)$/i);
-    if (collectionMatch && collectionMatch[1]) {
-      const collectionName = collectionMatch[1];
-
-      // Find collection by name
-      const collection = collections.value.find(
-        (c) => c.name.toLowerCase() === collectionName.toLowerCase()
-      );
-      if (collection) {
-        collectionId = collection.id;
-        // Remove the collection tag from the content
-        cleanContent = cleanContent
-          .substring(0, cleanContent.length - collectionMatch[0].length)
-          .trim();
+    case "edit":
+      if (isEditing.value) {
+        if (editingTaskId.value !== null) {
+          emit("edit-task", {
+            taskId: editingTaskId.value,
+            newContent: messageText,
+          });
+          isEditing.value = false;
+          editingTaskId.value = null;
+          newMessage.value = "";
+        }
+      } else {
+        if (props.focusedTaskId !== null) {
+          isEditing.value = true;
+          editingTaskId.value = props.focusedTaskId;
+          newMessage.value = content;
+        } else {
+          console.warn("No task selected for editing.");
+        }
       }
-    }
+      break;
   }
-
-  try {
-    console.log("Saving item to IndexedDB:", {
-      type,
-      content: cleanContent,
-      projectId,
-    });
-
-    // Increment message counter
-    messageCounter.value++;
-
-    // Increment date offset every 5 messages
-    if (messageCounter.value % 5 === 0) {
-      currentDateOffset.value++;
-    }
-
-    // Submit through the service
-    await submitTimelineItem(
-      type,
-      cleanContent,
-      projectId,
-      collectionId,
-      currentDateOffset.value
-    );
-
-    console.log("Item saved successfully.");
-    newMessage.value = ""; // Clear input
-    currentProject.value = null; // Reset current project
-    currentCollection.value = null; // Reset current collection
-
-    // Notify parent that message was submitted
-    emit("message-submitted");
-  } catch (error) {
-    console.error("Error saving timeline item to IndexedDB:", error);
-    // Optionally: Show an error message to the user
-  }
+  // ...existing logic...
 };
+
+function getAllStates() {
+  // You may want to fetch this from a config or constant
+  return ["todo", "in-progress", "done", "archived"];
+}
+
+function handleTaskCommand(command: string) {
+  newMessage.value = command;
+  submitMessage();
+}
+
+const editingChip = computed(() => {
+  return isEditing.value
+    ? "Editing task... (Press Enter to save, Esc to cancel)"
+    : "";
+});
 </script>
 
 <style lang="scss" scoped>
@@ -275,26 +253,27 @@ const submitMessage = async () => {
 // App theme colors
 $border-color: $gray-300;
 $accent-color: $orange-500;
-$accent-dark: $orange-700;
+$accent-dark: $orange-900;
 $suggestion-color: $gray-400;
 
 .chat-input-area {
+  margin-top: 15px;
   display: flex;
-  padding: 15px;
-  background-color: $white;
-  border-top: 1px solid $border-color;
+  gap: 8px;
+  align-items: center;
 
   .input-wrapper {
     position: relative;
-    flex-grow: 1;
-    margin-right: 10px;
+    width: 100%;
+    display: flex;
   }
 
   textarea {
+    flex-grow: 1;
     width: 100%;
     padding: 12px 15px;
-    border: 1px solid $border-color;
-    border-radius: 18px;
+    border: 0px solid $border-color;
+    border-radius: 4px;
     resize: none; // Prevent manual resizing
     font-family: "Inter", sans-serif;
     font-size: 0.95rem;
@@ -302,6 +281,8 @@ $suggestion-color: $gray-400;
     max-height: 120px; // Maximum height before scrolling
     overflow-y: auto; // Allow scrolling if text exceeds max-height
     transition: border-color 0.2s ease;
+    box-shadow: var(--tw-shadow-color, #00000026) 0px 1px 2px 0px inset,
+      var(--tw-shadow-color, #00000014) 1px -2px 2px 0px inset;
 
     &:focus {
       outline: none;
@@ -343,14 +324,15 @@ $suggestion-color: $gray-400;
   }
 
   button {
-    width: 48px;
-    height: 48px;
-    background-color: $accent-color;
+    // width: 48px;
+    // height: 48px;
+    padding: 12px 16px;
+    background-color: #ff4a00;
     color: $white;
     border: none;
-    border-radius: 50%;
+    border-radius: 4px;
     cursor: pointer;
-    font-size: 1.2rem;
+    font-size: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;

@@ -25,6 +25,14 @@
         :special-commands="specialCommands"
         :parse-message="parseMessage"
         :handle-special-commands="handleSpecialCommands"
+        :timeline-items="timeline"
+        :overview-type="overviewType"
+        :selected-tasks="selectedTasks"
+        :focused-task-id="focusedTaskId"
+        :focus-active="focusActive"
+        @edit-task="handleEditTask"
+        @delete-tasks="deleteSelectedTasks"
+        @move-tasks="handleMoveTasks"
         @message-submitted="handleMessageSubmitted"
         ref="chatInputRef"
       />
@@ -45,6 +53,7 @@
           @close="showOverview = false"
           @change-mode="handleOverviewModeChange"
           @refresh="loadTimelineData"
+          @selection-changed="handleSelectionChanged"
           ref="overviewSectionRef"
         />
       </div>
@@ -64,6 +73,9 @@
 </template>
 
 <script setup lang="ts">
+import { deleteItems } from "./services/indexedDB";
+import { onKeyStroke, useMagicKeys } from "@vueuse/core";
+
 // Get command handling from composable
 const {
   allItemTypes,
@@ -80,6 +92,15 @@ const {
   handleCanvasCommand,
   handleCloseCanvasCommand,
 } = useCommands();
+
+const { selectedTasks, clearSelection, focusState } = useTaskSelection();
+watch(
+  focusState,
+  (newState) => {
+    console.log("Focus state changed:", newState);
+  },
+  { deep: true }
+);
 
 // Get AI overview handling from composable
 const { aiOverviewLoading, aiOverviewContent, generateAiOverview } =
@@ -177,6 +198,50 @@ const loadProjectsData = async () => {
   }
 };
 
+// Handle edit-task, delete-tasks, move-tasks from ChatInput
+function handleEditTask({ id, content }) {
+  // Find and update the task in timeline
+  const idx = timeline.findIndex((t) => t.id === id);
+  if (idx !== -1) {
+    timeline[idx] = { ...timeline[idx], content };
+    // Optionally persist to DB here
+  }
+}
+
+function getTasksToDelete() {
+  if (selectedTasks.value && selectedTasks.value.length > 0) {
+    return selectedTasks.value;
+  }
+  return focusState.value.currentTaskId !== null
+    ? [focusState.value.currentTaskId]
+    : [];
+}
+
+function deleteSelectedTasks() {
+  const tasksToDelete = getTasksToDelete();
+  deleteItems(tasksToDelete);
+  clearSelection();
+  loadTimelineData();
+}
+
+function handleMoveTasks({ ids, state }) {
+  for (const id of ids) {
+    const idx = timeline.findIndex((t) => t.id === id);
+    if (idx !== -1) timeline[idx] = { ...timeline[idx], state };
+    // Optionally persist to DB here
+  }
+}
+
+onKeyStroke(["k"], (e) => {
+  if (e.metaKey || e.ctrlKey) {
+    const textarea = chatInputRef.value?.$el.querySelector("textarea");
+    if (textarea) {
+      textarea.focus();
+      e.preventDefault();
+    }
+  }
+});
+
 // Initialize app
 onMounted(async () => {
   if (process.client) {
@@ -236,12 +301,12 @@ body {
   width: 100%;
   max-width: 800px;
   min-width: 400px; // Smaller minimum width to fit better
-  background-color: $container-bg;
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  // background-color: $container-bg;
+  border-radius: 4px;
+  // box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
-  height: 80vh; // Fixed height for the container
+  height: 90vh; // Fixed height for the container
   overflow: hidden; // Hide overflow from children
   transition: width 0.3s ease, transform 0.3s ease;
 
@@ -259,7 +324,7 @@ body {
 .overview-container {
   width: 50%; // Same width as chat when both are visible
   min-width: 400px;
-  height: 80vh;
+  height: 90vh;
   overflow: hidden;
   position: relative;
   margin-left: 20px; // Add some space between containers
