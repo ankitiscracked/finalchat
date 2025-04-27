@@ -73,8 +73,10 @@
 </template>
 
 <script setup lang="ts">
-import { deleteItems } from "./services/indexedDB";
 import { onKeyStroke, useMagicKeys } from "@vueuse/core";
+import { getAllItems } from "./services/indexedDB";
+import { loadProjects } from "./services/projectService";
+import { useTaskOperations } from "./composables/useTaskOperations";
 
 // Get command handling from composable
 const {
@@ -93,7 +95,7 @@ const {
   handleCloseCanvasCommand,
 } = useCommands();
 
-const { selectedTasks, clearSelection, focusState } = useTaskSelection();
+const { selectedTasks, focusState } = useTaskSelection();
 watch(
   focusState,
   (newState) => {
@@ -102,13 +104,15 @@ watch(
   { deep: true }
 );
 
+// Get task operations from composable
+const { timeline, loadTimelineData, deleteSelectedTasks, editTask, moveTasks } = useTaskOperations();
+
 // Get AI overview handling from composable
 const { aiOverviewLoading, aiOverviewContent, generateAiOverview } =
   useAiOverview();
 
 // Refs
 const isDbReady = ref(false);
-const timeline = ref<TimelineItemRecord[]>([]);
 const projects = ref<any[]>([]);
 const chatTimelineRef = ref(null);
 const chatInputRef = ref(null);
@@ -175,18 +179,6 @@ function scrollToBottom() {
   }
 }
 
-// Load timeline data
-const loadTimelineData = async () => {
-  try {
-    timeline.value = await loadTimelineItems();
-    console.log(`Loaded ${timeline.value.length} items from IndexedDB.`);
-    scrollToBottom();
-  } catch (error) {
-    console.error("Error loading timeline items:", error);
-    timeline.value = [];
-  }
-};
-
 // Load project data
 const loadProjectsData = async () => {
   try {
@@ -198,38 +190,14 @@ const loadProjectsData = async () => {
   }
 };
 
-// Handle edit-task, delete-tasks, move-tasks from ChatInput
-function handleEditTask({ id, content }) {
-  // Find and update the task in timeline
-  const idx = timeline.findIndex((t) => t.id === id);
-  if (idx !== -1) {
-    timeline[idx] = { ...timeline[idx], content };
-    // Optionally persist to DB here
-  }
+// Handle edit-task event from ChatInput
+function handleEditTask(data) {
+  editTask(data);
 }
 
-function getTasksToDelete() {
-  if (selectedTasks.value && selectedTasks.value.length > 0) {
-    return selectedTasks.value;
-  }
-  return focusState.value.currentTaskId !== null
-    ? [focusState.value.currentTaskId]
-    : [];
-}
-
-function deleteSelectedTasks() {
-  const tasksToDelete = getTasksToDelete();
-  deleteItems(tasksToDelete);
-  clearSelection();
-  loadTimelineData();
-}
-
-function handleMoveTasks({ ids, state }) {
-  for (const id of ids) {
-    const idx = timeline.findIndex((t) => t.id === id);
-    if (idx !== -1) timeline[idx] = { ...timeline[idx], state };
-    // Optionally persist to DB here
-  }
+// Handle move-tasks event from ChatInput
+function handleMoveTasks(data) {
+  moveTasks(data);
 }
 
 onKeyStroke(["k"], (e) => {
@@ -256,6 +224,7 @@ onMounted(async () => {
 
       // Load projects and timeline data
       await Promise.all([loadProjectsData(), loadTimelineData()]);
+      scrollToBottom();
     } catch (error) {
       console.error("Failed to initialize IndexedDB:", error);
       isDbReady.value = false;
