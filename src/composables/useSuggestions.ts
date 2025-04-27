@@ -4,9 +4,22 @@ export function useSuggestions(
   textareaRef: any,
   newMessage: any,
   commandTypes: string[],
-  specialCommands: string[]
+  specialCommands: string[],
+  currentOverviewType: any = ref("task") // Add overview type parameter with default
 ) {
   const suggestionText = ref("");
+
+  // Command constraints mapping for contextual suggestions
+  const commandConstraints = {
+    'move-to': { allowedOverviewTypes: ['task'] },
+    // Add more constrained commands here as needed
+  };
+
+  // Utility function to check if a command is available in the current context
+  const isCommandAvailable = (command: string, overviewType: string): boolean => {
+    const constraints = commandConstraints[command];
+    return !constraints || constraints.allowedOverviewTypes.includes(overviewType);
+  };
 
   const commandPatterns = {
     fullCommand: (commandName) => new RegExp(`^\\/${commandName}\\s+$`),
@@ -53,6 +66,9 @@ export function useSuggestions(
     ];
 
     for (const { full, abbr } of commandAbbreviations) {
+      // Skip commands that aren't available in current context
+      if (!isCommandAvailable(full, currentOverviewType.value)) continue;
+      
       if (isFullCommand(textBeforeCursor, full) || isFullCommand(textBeforeCursor, abbr)) {
         suggestFirstCommandType();
         return;
@@ -121,10 +137,15 @@ export function useSuggestions(
       sho: "show",
       "ai-ov": "ai-overview",
     };
+    
     // If the user types an abbreviation, suggest the full command
     for (const abbr in abbrMap) {
-      if (partialCommand.startsWith(abbr) && abbrMap[abbr] !== partialCommand) {
-        suggestionText.value = abbrMap[abbr].substring(partialCommand.length);
+      const fullCmd = abbrMap[abbr];
+      // Skip commands that aren't available in current context
+      if (!isCommandAvailable(fullCmd, currentOverviewType.value)) continue;
+      
+      if (partialCommand.startsWith(abbr) && fullCmd !== partialCommand) {
+        suggestionText.value = fullCmd.substring(partialCommand.length);
         return;
       }
     }
@@ -140,7 +161,12 @@ export function useSuggestions(
       return;
     }
 
-    const matchingCommand = commandTypes.find(
+    // Filter available commands based on current context
+    const availableCommands = commandTypes.filter(cmd => 
+      isCommandAvailable(cmd, currentOverviewType.value)
+    );
+
+    const matchingCommand = availableCommands.find(
       (cmd) => cmd.startsWith(partialCommand) && cmd !== partialCommand
     );
 
@@ -291,5 +317,6 @@ export function useSuggestions(
     updateSuggestion,
     completeCommand,
     getTypedPart,
+    commandConstraints, // Export constraints for potential external usage
   };
 }

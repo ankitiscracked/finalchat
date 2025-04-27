@@ -66,6 +66,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref, nextTick, computed } from "vue";
 const props = defineProps<{
   isDbReady: boolean;
   commandTypes: string[];
@@ -88,6 +89,7 @@ const emit = defineEmits<{
   ): void;
   (e: "edit-task", payload: { taskId: number; newContent: string }): void;
 }>();
+
 
 // Refs
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
@@ -125,7 +127,8 @@ const { suggestionText, updateSuggestion, completeCommand, getTypedPart } =
     textareaRef,
     newMessage,
     props.commandTypes,
-    props.specialCommands
+    props.specialCommands,
+    computed(() => props.overviewType) // Pass current overview type
   );
 
 // Editing state
