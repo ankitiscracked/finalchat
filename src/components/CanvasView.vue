@@ -17,7 +17,7 @@
           @keydown.arrow-left.prevent="moveToPreviousCluster"
           @keydown.arrow-right.prevent="moveToNextCluster"
         ></textarea>
-        <button @click="closeCanvas">
+        <button @click="toggleShowCanvas(false)">
           <i class="ph-bold ph-x"></i>
         </button>
       </div>
@@ -264,17 +264,12 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{
-  onClose: () => void;
-  chatInputRef: HTMLTextAreaElement | null;
-}>();
-
-// Refs
 const canvasInputRef = ref<HTMLTextAreaElement | null>(null);
 const canvasRef = ref<HTMLDivElement | null>(null);
 const canvasContainerRef = ref<HTMLDivElement | null>(null);
 const canvasInput = ref("");
 const isCanvasFocused = ref(false);
+const { chatInputRef, toggleShowCanvas } = useGlobalElementAffordances();
 
 // Zoom state - use a regular ref instead of useTransition
 const zoomLevelIndex = ref(1); // 1, 2, or 3 directly
@@ -519,9 +514,7 @@ function focusInput() {
 
 // Focus on chat input
 function focusChatInput() {
-  if (props.chatInputRef) {
-    props.chatInputRef.focus();
-  }
+  chatInputRef.focus();
 }
 
 // Focus canvas container
@@ -529,11 +522,6 @@ function focusCanvasContainer() {
   if (canvasContainerRef.value) {
     canvasContainerRef.value.focus();
   }
-}
-
-// Close the canvas
-function closeCanvas() {
-  props.onClose();
 }
 
 // Cluster display adapts based on zoomLevelIndex computed property

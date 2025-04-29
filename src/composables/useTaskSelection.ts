@@ -1,44 +1,59 @@
-export interface FocusState {
-  isActive: boolean;
-  currentIndex: number;
-  currentTaskId: number | null;
-}
+import { ref } from 'vue';
 
-// Selected task IDs
-const selectedTaskIds = ref<Set<number>>(new Set());
-
-// Computed array for selected task IDs
-const selectedTasks = computed(() => Array.from(selectedTaskIds.value));
-
-const focusState = ref<FocusState>({
+// Create reactive state
+const selectedTaskIds = ref<number[]>([]);
+const focusState = ref({
   isActive: false,
   currentIndex: -1,
-  currentTaskId: null,
+  currentTaskId: null as number | null,
 });
 
+/**
+ * Composable for managing task selection and focus state
+ */
 export function useTaskSelection() {
-  // Clear selection
-  const clearSelection = () => {
-    selectedTaskIds.value.clear();
-  };
-
-  // Toggle task selection
-  const toggleTaskSelection = (taskId: number | undefined) => {
-    if (taskId === undefined) return;
-
-    if (selectedTaskIds.value.has(taskId)) {
-      selectedTaskIds.value.delete(taskId);
+  
+  /**
+   * Toggle selection for a task
+   */
+  const toggleTaskSelection = (taskId: number) => {
+    const index = selectedTaskIds.value.indexOf(taskId);
+    if (index === -1) {
+      // Add to selection
+      selectedTaskIds.value = [...selectedTaskIds.value, taskId];
     } else {
-      selectedTaskIds.value.add(taskId);
+      // Remove from selection
+      selectedTaskIds.value = selectedTaskIds.value.filter(id => id !== taskId);
     }
-    // Ensure reactivity by creating a new Set
-    selectedTaskIds.value = new Set(selectedTaskIds.value);
-    console.log("Selected task IDs:", Array.from(selectedTaskIds.value));
   };
+  
+  /**
+   * Clear all selected tasks
+   */
+  const clearSelection = () => {
+    selectedTaskIds.value = [];
+  };
+  
+  /**
+   * Select a list of tasks
+   */
+  const selectTasks = (taskIds: number[]) => {
+    selectedTaskIds.value = taskIds;
+  };
+  
+  /**
+   * Check if a task is selected
+   */
+  const isTaskSelected = (taskId: number) => {
+    return selectedTaskIds.value.includes(taskId);
+  };
+
   return {
-    selectedTasks,
+    selectedTaskIds,
+    focusState,
     toggleTaskSelection,
     clearSelection,
-    focusState,
+    selectTasks,
+    isTaskSelected
   };
 }

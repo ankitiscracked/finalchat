@@ -12,29 +12,12 @@
       ]"
     >
       <!-- Chat Timeline -->
-      <ChatTimeline
-        :timeline="timeline"
-        :projects="projects"
-        ref="chatTimelineRef"
-      />
+      <ChatTimeline :ref="(el) => setGlobalElementRef(el, 'chatTimeline')" />
 
       <!-- Chat Input Area -->
       <ChatInput
         :is-db-ready="isDbReady"
-        :command-types="commandTypes"
-        :special-commands="specialCommands"
-        :parse-message="parseMessage"
-        :handle-special-commands="handleSpecialCommands"
-        :timeline-items="timeline"
-        :overview-type="overviewType"
-        :selected-tasks="selectedTasks"
-        :focused-task-id="focusedTaskId"
-        :focus-active="focusActive"
-        @edit-task="handleEditTask"
-        @delete-tasks="deleteSelectedTasks"
-        @move-tasks="handleMoveTasks"
-        @message-submitted="handleMessageSubmitted"
-        ref="chatInputRef"
+        :ref="(el) => setGlobalElementRef(el, 'chatInput')"
       />
     </div>
 
@@ -42,191 +25,89 @@
     <transition name="slide">
       <div v-if="showOverview" class="overview-container">
         <OverviewSection
-          :items="timeline"
-          :type="overviewType"
-          :mode="overviewMode"
-          :is-loading="aiOverviewLoading"
-          :ai-content="aiOverviewContent"
-          :chat-input-ref="
-            chatInputRef ? chatInputRef.$el.querySelector('textarea') : null
-          "
-          @close="showOverview = false"
-          @change-mode="handleOverviewModeChange"
-          @refresh="loadTimelineData"
-          @selection-changed="handleSelectionChanged"
-          ref="overviewSectionRef"
+          :ref="(el) => setGlobalElementRef(el, 'overviewSection')"
         />
       </div>
     </transition>
 
     <!-- Canvas section -->
     <transition name="fade">
-      <CanvasView
-        v-if="showCanvas"
-        :onClose="handleCloseCanvas"
-        :chatInputRef="
-          chatInputRef ? chatInputRef.$el.querySelector('textarea') : null
-        "
-      />
+      <CanvasView v-if="showCanvas" />
     </transition>
+
+    <!-- Commands Drawer -->
+    <CommandsDrawer :ref="(el) => setGlobalElementRef(el, 'commandDrawer')" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onKeyStroke, useMagicKeys } from "@vueuse/core";
-import { getAllItems } from "./services/indexedDB";
-import { loadProjects } from "./services/projectService";
-import { useTaskOperations } from "./composables/useTaskOperations";
+import { onMounted, ref } from "vue";
+import CommandsDrawer from "./components/CommandsDrawer.vue";
+import { useAiOverview } from "./composables/useAiOverview";
+import { useCollections } from "./composables/useCollections";
+import { useCommands } from "./composables/useCommands";
+import { useEvents } from "./composables/useEvents";
+import { useGlobalElementAffordances } from "./composables/useGlobalElementAffordances";
+import { useNotes } from "./composables/useNotes";
+import { useProjects } from "./composables/useProjects";
+import { useTasks } from "./composables/useTasks";
+
+const { chatInputRef, setGlobalElementRef, scrollChatTimelineToBotton } =
+  useGlobalElementAffordances();
 
 // Get command handling from composable
-const {
-  allItemTypes,
-  commandTypes,
-  specialCommands,
-  showOverview,
-  overviewType,
-  overviewMode,
-  showCanvas,
-  parseMessage,
-  handleShowCommand,
-  handleCloseOverviewCommand,
-  handleAiOverviewCommand,
-  handleCanvasCommand,
-  handleCloseCanvasCommand,
-} = useCommands();
-
-const { selectedTasks, focusState } = useTaskSelection();
-watch(
-  focusState,
-  (newState) => {
-    console.log("Focus state changed:", newState);
-  },
-  { deep: true }
-);
-
-// Get task operations from composable
-const { timeline, loadTimelineData, deleteSelectedTasks, editTask, moveTasks } = useTaskOperations();
+const { showOverview, overviewType, overviewMode, showCanvas } = useCommands();
 
 // Get AI overview handling from composable
 const { aiOverviewLoading, aiOverviewContent, generateAiOverview } =
   useAiOverview();
 
-// Refs
+const { refreshTimeline } = useTimeline();
 const isDbReady = ref(false);
-const projects = ref<any[]>([]);
-const chatTimelineRef = ref(null);
-const chatInputRef = ref(null);
-const overviewSectionRef = ref(null);
 
 // Function to handle overview mode changes from the component
 function handleOverviewModeChange(mode: "standard" | "ai"): void {
   overviewMode.value = mode;
 
   if (mode === "ai") {
-    generateAiOverview(overviewType.value, timeline.value);
+    generateAiOverview(overviewType.value, timelineItems.value);
   }
 }
 
-// Function to handle closing the canvas
-function handleCloseCanvas() {
-  showCanvas.value = false;
-}
-
-// Function to handle special commands
-function handleSpecialCommands(message: string): boolean {
-  const showCommandResult = handleShowCommand(message);
-  const closeCommandResult = handleCloseOverviewCommand(message);
-  const aiOverviewCommandResult = handleAiOverviewCommand(message);
-  const canvasCommandResult = handleCanvasCommand(message);
-  const closeCanvasCommandResult = handleCloseCanvasCommand(message);
-
-  if (showCommandResult.success) {
-    // If it's a /show task command and we should activate task focus
-    if (showCommandResult.activateTaskFocus) {
-      console.log("Should activate task focus");
-      // Add a small delay to ensure the overview section is fully rendered
-      setTimeout(() => {
-        console.log(
-          "Attempting to activate task focus",
-          overviewSectionRef.value
-        );
-        if (overviewSectionRef.value) {
-          overviewSectionRef.value.activateTaskFocus();
-        }
-      }, 100); // Small delay to ensure DOM is updated
-    }
-    return true;
-  }
-
-  return (
-    closeCommandResult.success ||
-    aiOverviewCommandResult.success ||
-    canvasCommandResult.success ||
-    closeCanvasCommandResult.success
-  );
-}
-
-// Handle message submission (reload timeline)
-async function handleMessageSubmitted() {
-  await loadTimelineData();
-  scrollToBottom();
-}
-
-// Scroll to bottom of chat
-function scrollToBottom() {
-  if (chatTimelineRef.value) {
-    (chatTimelineRef.value as any).scrollToBottom();
-  }
-}
-
-// Load project data
-const loadProjectsData = async () => {
-  try {
-    projects.value = await loadProjects();
-    console.log(`Loaded ${projects.value.length} projects from IndexedDB.`);
-  } catch (error) {
-    console.error("Error loading projects:", error);
-    projects.value = [];
-  }
-};
-
-// Handle edit-task event from ChatInput
-function handleEditTask(data) {
-  editTask(data);
-}
-
-// Handle move-tasks event from ChatInput
-function handleMoveTasks(data) {
-  moveTasks(data);
-}
-
-onKeyStroke(["k"], (e) => {
-  if (e.metaKey || e.ctrlKey) {
-    const textarea = chatInputRef.value?.$el.querySelector("textarea");
-    if (textarea) {
-      textarea.focus();
-      e.preventDefault();
-    }
-  }
-});
+useEventListeners();
 
 // Initialize app
 onMounted(async () => {
   if (process.client) {
     try {
-      console.log(
-        "Component mounted client-side, initializing IndexedDB connection..."
-      );
-      // Ensure DB is opened and upgraded
-      await getAllItems();
-      isDbReady.value = true;
-      console.log("IndexedDB connection ready, loading data...");
+      console.log("Component mounted client-side, initializing data...");
 
-      // Load projects and timeline data
-      await Promise.all([loadProjectsData(), loadTimelineData()]);
-      scrollToBottom();
+      // Initialize all data in parallel
+      const { initialize: initTasks } = useTasks();
+      const { initialize: initEvents } = useEvents();
+      const { initialize: initNotes } = useNotes();
+
+      // Create dummy refs for projects and collections (not used directly)
+      const dummyRef = ref(null);
+      const dummyMessage = ref("");
+      const { loadProjectsData } = useProjects(dummyRef, dummyMessage);
+      const { loadCollectionsData } = useCollections(dummyRef, dummyMessage);
+
+      // Initialize entity data stores in parallel
+      await Promise.all([
+        initTasks(),
+        initEvents(),
+        initNotes(),
+        loadProjectsData(),
+        loadCollectionsData(),
+      ]);
+
+      isDbReady.value = true;
+      console.log("All data initialized and ready to use");
+
+      scrollChatTimelineToBotton();
     } catch (error) {
-      console.error("Failed to initialize IndexedDB:", error);
+      console.error("Failed to initialize data:", error);
       isDbReady.value = false;
     }
   }

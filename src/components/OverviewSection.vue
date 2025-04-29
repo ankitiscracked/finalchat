@@ -2,8 +2,8 @@
   <div class="overview-section">
     <div class="overview-header">
       <div class="header-left">
-        <h2>{{ capitalizeFirst(type) }} Overview</h2>
-        <div class="mode-selector" v-if="mode === 'standard'">
+        <h2>{{ capitalizeFirst(overviewType) }} Overview</h2>
+        <div class="mode-selector" v-if="overviewMode === 'standard'">
           <button @click="$emit('changeMode', 'ai')" class="ai-button">
             <i class="ph-bold ph-robot"></i> AI Overview
           </button>
@@ -23,94 +23,101 @@
     </div>
 
     <!-- Standard overview mode -->
-    <div v-if="mode === 'standard'" class="overview-content">
+    <div v-if="overviewMode === 'standard'" class="overview-content">
       <template v-if="groupedItems.length > 0">
         <div v-for="([date, items], index) in groupedItems" :key="date">
           <div class="date-separator">{{ date }}</div>
-          <div
-            v-for="(item, idx) in items"
-            :key="item.id"
-            :class="[
-              'overview-item',
-              `item-${item.type}`,
-              {
-                focused:
-                  item.type === 'task' &&
-                  focusState.isActive &&
-                  item.id === focusState.currentTaskId,
-              },
-            ]"
-            :ref="
-              (el) =>
-                item.type === 'task' ? setTaskRef(el, getTaskIndex(item)) : null
-            "
-            :tabindex="item.type === 'task' ? 0 : -1"
-            @keydown="
-              item.type === 'task'
-                ? handleTaskKeyPress($event, item, idx)
-                : null
-            "
-          >
-            <div class="checkbox-wrapper">
-              <input
-                type="checkbox"
-                :checked="selectedTasks.includes(item.id)"
-                @change="toggleTaskSelection(item.id)"
-              />
-            </div>
-            <span class="item-icon">
-              <i :class="getIconClass(item.type)"></i>
-            </span>
-            <div class="item-content">
-              {{ item.content }}
-
-              <!-- Show status for tasks -->
-              <span
-                v-if="item.type === 'task'"
-                class="item-status"
-                :class="[`status-${item.status || 'todo'}`]"
-              >
-                {{ formatStatus(item.status || "todo") }}
-              </span>
-
-              <!-- Show project for tasks with projectId -->
-              <span
-                v-if="item.type === 'task' && item.projectId"
-                class="item-project"
-              >
-                in
-                <span class="project-tag"
-                  >#{{ getProjectName(item.projectId) }}</span
-                >
-              </span>
-
-              <!-- Show collection for notes and events with collectionId -->
-              <span
-                v-if="
-                  (item.type === 'event' || item.type === 'default') &&
-                  item.collectionId
+          <template v-for="(item, idx) in items" :key="item.id">
+            <!-- Task items use popover -->
+            <template v-if="item.type === 'task'">
+              <TaskPopover
+                :is-open="item.id === activePopoverTaskId"
+                @update:is-open="
+                  (isOpen) => handlePopoverOpenChange(isOpen, item.id)
                 "
-                class="item-collection"
+                :task="item"
+                :projects="projects"
+                side="bottom"
+                align="start"
+                :side-offset="5"
+                @save="saveEditedTask"
               >
-                in
-                <span class="collection-tag"
-                  >@{{ getCollectionName(item.collectionId) }}</span
-                >
-              </span>
+                <template #trigger>
+                  <TaskItem
+                    :task="item"
+                    :is-selected="selectedItems.includes(item.id)"
+                    :is-focused="
+                      navigationState.isActive &&
+                      item.id === navigationState.currentItemId
+                    "
+                    :project-name="getProjectName(item.projectId)"
+                    @toggle-selection="toggleSelection"
+                    @key-press="
+                      (event, task) => handleItemKeyPress(event, task, idx)
+                    "
+                  />
+                </template>
+              </TaskPopover>
+            </template>
 
-              <span class="item-timestamp">{{
-                formatTime(item.createdAt)
-              }}</span>
-            </div>
-          </div>
+            <!-- Other item types -->
+            <template v-else>
+              <div
+                :class="[
+                  'overview-item',
+                  `item-${item.type}`,
+                  {
+                    focused:
+                      navigationState.isActive &&
+                      item.id === navigationState.currentItemId,
+                  },
+                ]"
+                tabindex="0"
+                :ref="(el) => setItemRef(el, idx)"
+                @keydown="(event) => handleItemKeyPress(event, item, idx)"
+              >
+                <div class="checkbox-wrapper">
+                  <input
+                    type="checkbox"
+                    :checked="selectedItems.includes(item.id)"
+                    @change="toggleSelection(item.id)"
+                  />
+                </div>
+                <span class="item-icon">
+                  <i :class="getIconClass(item.type)"></i>
+                </span>
+                <div class="item-content">
+                  {{ item.content }}
+
+                  <!-- Show collection for notes and events with collectionId -->
+                  <span
+                    v-if="
+                      (item.type === 'event' || item.type === 'default') &&
+                      item.collectionId
+                    "
+                    class="item-collection"
+                  >
+                    in
+                    <span class="collection-tag"
+                      >@{{ getCollectionName(item.collectionId) }}</span
+                    >
+                  </span>
+
+                  <span class="item-timestamp">{{
+                    formatTime(item.createdAt)
+                  }}</span>
+                </div>
+              </div>
+            </template>
+          </template>
         </div>
       </template>
-      <p v-else class="empty-overview">No {{ type }} items found.</p>
+      <p v-else class="empty-overview">No {{ overviewType }} items found.</p>
     </div>
 
     <!-- AI overview mode -->
     <div v-else class="overview-content ai-content">
-      <div v-if="isLoading" class="loading-container">
+      <div v-if="aiOverviewLoading" class="loading-container">
         <div class="loading-spinner"></div>
         <p>Generating AI overview...</p>
       </div>
@@ -131,103 +138,115 @@
       </div>
 
       <div v-else class="ai-overview empty-overview">
-        <p>No AI overview available. Try adding more {{ type }} items.</p>
+        <p>
+          No AI overview available. Try adding more {{ overviewType }} items.
+        </p>
       </div>
     </div>
 
-    <!-- Task Actions Popover -->
-    <TaskActionsPopover
-      v-if="showActionsPopover && currentTask"
-      :position="actionsPopoverPosition"
-      :nextStatusLabel="nextStatusLabel"
-      :previousStatusLabel="previousStatusLabel"
-      @close="closeActionsPopover"
-      @forwardStatus="changeTaskStatusForward"
-      @backwardStatus="changeTaskStatusBackward"
-      @delete="deleteTask"
-    />
     <!-- Debug info -->
-    <div v-if="type === 'task'" class="debug-info">
-      <p>Focus active: {{ focusState.isActive }}</p>
-      <p>Current index: {{ focusState.currentIndex }}</p>
-      <p>Current task ID: {{ focusState.currentTaskId }}</p>
-      <p>Showing actions popover: {{ showActionsPopover }}</p>
+    <div v-if="overviewType === 'task'" class="debug-info">
+      <p>Focus active: {{ navigationState.isActive }}</p>
+      <p>Current index: {{ navigationState.currentIndex }}</p>
+      <p>Current item ID: {{ navigationState.currentItemId }}</p>
+      <p>Active popover task ID: {{ activePopoverTaskId }}</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-// Define props
-const props = defineProps<{
-  items: TimelineItemRecord[];
-  type: string;
-  mode: "standard" | "ai";
-  isLoading?: boolean;
-  aiContent?: { summary: string; insights: string[] } | null;
-  chatInputRef?: HTMLTextAreaElement | null;
-}>();
+import TaskItem from "./task/TaskItem.vue";
+import TaskPopover from "./task/TaskPopover.vue";
+import {
+  updateItem,
+  getAllProjects,
+  getAllCollections,
+} from "../services/indexedDB";
+import { useNavigation } from "../composables/useNavigation";
 
 // Define emits
-const emit = defineEmits([
-  "close",
-  "changeMode",
-  "refresh",
-  "selection-changed",
-]);
+const emit = defineEmits(["close", "changeMode", "refresh"]);
+const { overviewType, overviewMode } = useCommands();
+const { aiOverviewLoading, aiOverviewContent: aiContent } = useAiOverview();
+const { refreshItems, getItemsByType } = useTimeline();
 
-// All tasks from the items array
-const tasks = computed(() =>
-  props.items.filter((item) => item.type === "task")
-);
+// Group items by date
+const groupedItems = computed(() => {
+  const items = getItemsByType(overviewType.value);
+  const groups: Record<string, TimelineItemRecord[]> = {};
 
-// Cache of task indices for quick lookup
-const taskIndexMap = ref(new Map<number, number>());
+  items.value.forEach((item) => {
+    const dateStr = formatDate(item.createdAt);
+    if (!groups[dateStr]) {
+      groups[dateStr] = [];
+    }
+    groups[dateStr].push(item);
+  });
 
-// Helper function to get task index in the tasks array
-function getTaskIndex(task: TimelineItemRecord): number {
-  if (!task.id) {
-    throw new Error("Task is missing an id. All tasks must have a valid id.");
-  }
-
-  // Update taskIndexMap whenever tasks change
-  if (taskIndexMap.value.size !== tasks.value.length) {
-    taskIndexMap.value.clear();
-    tasks.value.forEach((task, index) => {
-      if (task.id) taskIndexMap.value.set(task.id, index);
-    });
-  }
-
-  return taskIndexMap.value.get(task.id) ?? -1;
-}
-const { toggleTaskSelection, focusState } = useTaskSelection();
-
-// Focus management using our composable
-const {
-  taskRefs,
-  setTaskRef,
-  currentTask,
-  activateTaskFocus,
-  navigateTasks,
-  deactivateTaskFocus,
-  handleTaskKeydown,
-  selectedTasks,
-} = useFocusable(tasks, ref(props.chatInputRef));
-
-// Expose activateTaskFocus method to the parent component
-defineExpose({
-  activateTaskFocus,
+  // Return as an array of [date, items] pairs, sorted chronologically (newest first)
+  return Object.entries(groups).sort((a, b) => {
+    const dateA = new Date(a[0]);
+    const dateB = new Date(b[0]);
+    return dateB.getTime() - dateA.getTime(); // Reverse order (newest first)
+  });
 });
 
-// Force update task refs when items change
+// Get typed items based on overview type
+const serializedItems = computed(() =>
+  Object.keys(groupedItems.value).flatMap((key) => groupedItems.value[key])
+);
+
+// Use our new navigation composable
+const {
+  navigationState,
+  selectedItemIds: selectedItems,
+  setItemRef,
+  activateNavigation,
+  toggleSelection,
+  handleKeydown,
+  getItemIndex,
+  focusItemById,
+} = useNavigation(serializedItems, {
+  onAction: handleItemAction,
+});
+
+// Handle item actions triggered by keyboard
+function handleItemAction(
+  item: TimelineItemRecord,
+  actionKey: string,
+  event: KeyboardEvent
+) {
+  if (!item.id) return;
+
+  // Based on the key pressed, trigger different actions
+  switch (actionKey) {
+    case " ":
+    case "Spacebar":
+    case "e":
+      // Open item popover/editor
+      if (item.type === "task") {
+        activePopoverTaskId.value = item.id;
+      }
+      break;
+  }
+}
+
+// Expose navigation method to the parent component
+defineExpose({
+  activateNavigation,
+});
+
+// Log when items change
 watch(
   () => props.items,
   () => {
     nextTick(() => {
-      taskIndexMap.value.clear();
-
-      // Re-initialize task refs
-      if (props.type === "task" && tasks.value.length > 0) {
-        console.log("Tasks available after items update:", tasks.value.length);
+      // Log item count
+      if (serializedItems.value.length > 0) {
+        console.log(
+          `${overviewType} items available after update:`,
+          serializedItems.value.length
+        );
       }
     });
   },
@@ -236,109 +255,81 @@ watch(
 
 // Watch for type changes to ensure proper focus handling
 watch(
-  () => props.type,
+  () => overviewType,
   (newType) => {
-    if (newType === "task") {
-      console.log("Overview type changed to task");
-      // Clear any previous focus state
-      focusState.value.isActive = false;
-      focusState.value.currentIndex = -1;
-
-      // Wait for the DOM to update
-      nextTick(() => {
-        // Reset task index map to force ref recalculation
-        taskIndexMap.value.clear();
-      });
-    }
+    // Clear any previous focus state when type changes
+    navigationState.value.isActive = false;
+    navigationState.value.currentIndex = -1;
+    navigationState.value.currentItemId = null;
+    console.log(`Overview type changed to ${newType}`);
   },
   { immediate: true }
 );
 
-// Refresh items
-const refreshItems = async () => {
-  emit("refresh");
+// Task popover state
+const activePopoverTaskId = ref<number | null>(null);
+
+// Handle popover open/close
+const handlePopoverOpenChange = (isOpen: boolean, taskId?: number) => {
+  if (isOpen && taskId) {
+    activePopoverTaskId.value = taskId;
+
+    // Update navigation state to match this task
+    if (taskId) {
+      focusItemById(taskId);
+    }
+  } else {
+    activePopoverTaskId.value = null;
+  }
 };
 
-// Task actions composable
-const {
-  showActionsPopover,
-  actionsPopoverPosition,
-  nextStatusLabel,
-  previousStatusLabel,
-  openActionsPopover,
-  closeActionsPopover,
-  changeTaskStatusForward,
-  changeTaskStatusBackward,
-  deleteTask,
-} = useTaskActions(currentTask, refreshItems);
+// Save edited task
+const saveEditedTask = async (editedTask: TimelineItemRecord) => {
+  try {
+    // await updateItem(editedTask);
+    await refreshItems(overviewType.value);
+    // Close popover
+    activePopoverTaskId.value = null;
+  } catch (error) {
+    console.error("Error updating task:", error);
+  }
+};
 
-// Expose selected tasks and focus state to parent/app
-watch(
-  () => ({
-    selectedTasks: selectedTasks.value,
-    focusedTaskId: focusState.currentTaskId,
-    focusActive: focusState.isActive,
-  }),
-  (val) => {
-    emit("selection-changed", val);
-  },
-  { deep: true }
-);
-
-// Handle key press on tasks
-function handleTaskKeyPress(
+// Handle key press on items
+function handleItemKeyPress(
   event: KeyboardEvent,
-  task: TimelineItemRecord,
+  item: TimelineItemRecord,
   idx: number
 ) {
-  if (event.key === "Enter") {
-    toggleTaskSelection(task.id);
-    event.preventDefault();
-    return;
-  }
-
-  // Directly check for the 'a' key first
-  if (event.key === "a") {
-    console.log("A key pressed on task", task);
-
-    // Update the current task focus state to match this task
-    const taskIndex = getTaskIndex(task);
-    if (taskIndex >= 0) {
-      focusState.value.currentIndex = taskIndex;
-      focusState.value.currentTaskId = task.id || null;
+  // Update the current item in navigation state to match this item
+  if (item.id) {
+    const itemIndex = getItemIndex(item);
+    if (itemIndex >= 0) {
+      navigationState.value.currentIndex = itemIndex;
+      navigationState.value.currentItemId = item.id;
+      navigationState.value.isActive = true;
     }
-
-    // Use the target element for positioning
-    const taskElement = event.target as HTMLElement;
-    openActionsPopover(taskElement);
-    event.preventDefault();
-    return;
   }
 
-  // Handle arrow keys and other navigation
-  if (event.key === "ArrowUp") {
-    console.log("Arrow Up pressed on task");
-    event.preventDefault();
-    navigateTasks(-1);
-    return;
-  }
-
-  if (event.key === "ArrowDown") {
-    console.log("Arrow Down pressed on task");
-    event.preventDefault();
-    navigateTasks(1);
-    return;
-  }
-
+  // Special handling for escape key to close popovers first
   if (event.key === "Escape") {
-    console.log("Escape pressed on task");
-    event.preventDefault();
-    deactivateTaskFocus();
+    // Close any open popovers first
+    if (showActionsPopover.value || activePopoverTaskId.value !== null) {
+      closeActionsPopover();
+      activePopoverTaskId.value = null;
+      event.preventDefault();
+      return;
+    }
+  }
+
+  // Process the key press with our navigation handler
+  if (handleKeydown(event)) {
+    // The key was handled by the navigation composable
     return;
   }
 
-  // Fall back to the composable's handler
-  handleTaskKeydown(event);
+  // If we got here, the key wasn't handled by the navigation composable
+  console.log(`Key ${event.key} not handled by navigation`);
 }
 
 // Helper function to format date
@@ -425,27 +416,6 @@ function getCollectionName(collectionId: number): string {
   const collection = collections.value.find((c) => c.id === collectionId);
   return collection ? collection.name : "Unknown Collection";
 }
-
-// Group items by date
-const groupedItems = computed(() => {
-  const filteredItems = props.items.filter((item) => item.type === props.type);
-  const groups: Record<string, TimelineItemRecord[]> = {};
-
-  filteredItems.forEach((item) => {
-    const dateStr = formatDate(item.createdAt);
-    if (!groups[dateStr]) {
-      groups[dateStr] = [];
-    }
-    groups[dateStr].push(item);
-  });
-
-  // Return as an array of [date, items] pairs, sorted chronologically (newest first)
-  return Object.entries(groups).sort((a, b) => {
-    const dateA = new Date(a[0]);
-    const dateB = new Date(b[0]);
-    return dateB.getTime() - dateA.getTime(); // Reverse order (newest first)
-  });
-});
 </script>
 
 <style lang="scss" scoped>

@@ -1,12 +1,13 @@
-import { ref, computed, onMounted, nextTick, type Ref } from "vue";
-import type { TimelineItemRecord } from "../services/indexedDB";
+import { ref, computed, nextTick } from "vue";
+import { useTasks } from "./useTasks";
+import type { Task } from "../models";
 
-export function useFocusable(
-  items: Ref<TimelineItemRecord[]>,
-  chatInputRef: Ref<HTMLTextAreaElement | null>
-) {
-  const { selectedTasks, toggleTaskSelection, focusState } = useTaskSelection();
-  // Focus state
+/**
+ * Enhanced useFocusable composable that doesn't require passing task data
+ */
+export function useFocusable() {
+  const { tasks, selectedTaskIds, focusState, toggleTaskSelection } =
+    useTasks();
 
   // Initialize taskRefs with a proper type to allow undefined values
   const taskRefs = ref<(HTMLElement | undefined)[]>([]);
@@ -21,13 +22,8 @@ export function useFocusable(
     }
   };
 
-  // Filter tasks only
-  const tasks = computed(() => {
-    return items.value.filter((item) => item.type === "task");
-  });
-
   // Get the currently focused task
-  const currentTask = computed(() => {
+  const currentTask = computed<Task | null>(() => {
     if (
       focusState.value.currentIndex >= 0 &&
       focusState.value.currentIndex < tasks.value.length
@@ -88,18 +84,18 @@ export function useFocusable(
   };
 
   // Deactivate task navigation and return to chat input
-  const deactivateTaskFocus = () => {
-    focusState.value.isActive = false;
-    focusState.value.currentIndex = -1;
-    focusState.value.currentTaskId = null;
+  // const deactivateTaskFocus = () => {
+  //   focusState.value.isActive = false;
+  //   focusState.value.currentIndex = -1;
+  //   focusState.value.currentTaskId = null;
 
-    // Return focus to chat input
-    nextTick(() => {
-      if (chatInputRef.value) {
-        chatInputRef.value.focus();
-      }
-    });
-  };
+  //   // Return focus to chat input
+  //   nextTick(() => {
+  //     if (chatInputRef.value) {
+  //       chatInputRef.value.focus();
+  //     }
+  //   });
+  // };
 
   // Handle keyboard events for task navigation and selection
   const handleTaskKeydown = (event: KeyboardEvent) => {
@@ -116,7 +112,7 @@ export function useFocusable(
         break;
       case "Escape":
         event.preventDefault();
-        deactivateTaskFocus();
+        // deactivateTaskFocus();
         break;
       case "Enter":
         event.preventDefault();
@@ -128,6 +124,13 @@ export function useFocusable(
         // Trigger the actions popover
         event.preventDefault();
         return true; // Signal that 'a' was pressed on a task
+        break;
+      case " ":
+      case "Spacebar":
+      case "e":
+        // Trigger the task popover
+        event.preventDefault();
+        return true; // Signal that a popover trigger key was pressed
         break;
     }
     return false;
@@ -143,6 +146,6 @@ export function useFocusable(
     navigateTasks,
     deactivateTaskFocus,
     handleTaskKeydown,
-    selectedTasks,
+    selectedTaskIds,
   };
 }

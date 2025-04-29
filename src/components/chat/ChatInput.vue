@@ -2,10 +2,10 @@
   <div class="chat-input-area">
     <div class="input-wrapper">
       <textarea
-        ref="textareaRef"
+        :ref="(el) => setGlobalElementRef(el, 'chatInputTextArea')"
         id="chat-input"
         :placeholder="
-          isDbReady
+          props.isDbReady
             ? isEditing
               ? 'Edit task and press Enter/Esc...'
               : 'Type your message or command...'
@@ -17,27 +17,17 @@
         @keydown.tab.prevent="completeCommand"
         @keydown="handleKeyDown"
         @input="handleInput"
-        :disabled="!isDbReady"
+        :disabled="!props.isDbReady"
       ></textarea>
+
       <div v-if="suggestionText" class="suggestion-overlay">
         <span class="typed-part">{{ getTypedPart() }}</span
         ><span class="suggestion-part">{{ suggestionText }}</span>
         <div class="suggestion-hint">hit Tab to complete</div>
       </div>
+
       <div v-if="isEditing" class="editing-chip">
         Editing task... (Press Enter to save, Esc to cancel)
-      </div>
-      <div v-if="showMoveToStateInput" class="move-to-state-chip">
-        Move to state:
-        <select v-model="moveToState">
-          <option
-            v-for="state in moveToStateOptions"
-            :key="state"
-            :value="state"
-          >
-            {{ state }}
-          </option>
-        </select>
       </div>
 
       <!-- Project Popover -->
@@ -59,7 +49,11 @@
       />
     </div>
 
-    <button id="submit-button" @click="submitMessage" :disabled="!isDbReady">
+    <button
+      id="submit-button"
+      @click="submitMessage"
+      :disabled="!props.isDbReady"
+    >
       Send
     </button>
   </div>
@@ -67,69 +61,56 @@
 
 <script setup lang="ts">
 import { ref, nextTick, computed } from "vue";
+import { useTaskOperations } from "../../composables/useTaskOperations";
+
+const { setGlobalElementRef } = useGlobalElementAffordances();
 const props = defineProps<{
   isDbReady: boolean;
-  commandTypes: string[];
-  specialCommands: string[];
-  parseMessage: (message: string) => { type: string; content: string };
-  handleSpecialCommands: (message: string) => boolean;
-  timelineItems: TimelineItemRecord[];
-  overviewType: string;
-  selectedTasks: number[];
-  focusedTaskId: number | null;
-  focusActive: boolean;
 }>();
 
-const emit = defineEmits<{
-  (e: "message-submitted"): void;
-  (e: "delete-tasks"): void;
-  (
-    e: "move-tasks",
-    payload: { selectedTasks: any[]; currentTaskId: number; newState: string }
-  ): void;
-  (e: "edit-task", payload: { taskId: number; newContent: string }): void;
-}>();
+const {
+  handleShowCommand,
+  handleCloseOverviewCommand,
+  handleAiOverviewCommand,
+  handleCanvasCommand,
+  handleCloseCanvasCommand,
+} = useCommands();
+const { activateTaskFocus } = useFocusable();
 
+// Get task operations from composable
+const { deleteSelectedTasks, editTask, moveTasks } = useTaskOperations();
+const { parseMessage } = useCommands();
+const { selectedTaskIds, focusState } = useTaskSelection();
+const focusedTaskId = computed(() => focusState.value.currentTaskId);
 
-// Refs
-const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const newMessage = ref("");
-const messageCounter = ref(0);
-const currentDateOffset = ref(0);
 
 // Extract project handling from composable
 const {
   showProjectPopover,
   projectPopoverPosition,
-  currentProject,
-  projects,
   checkForProjectTag,
   closeProjectPopover,
   selectProject,
-  extractProjectFromContent: extractProject,
-} = useProjects(textareaRef, newMessage);
+} = useProjects(newMessage);
 
 // Extract collection handling from composable
 const {
   showCollectionPopover,
   collectionPopoverPosition,
-  currentCollection,
-  collections,
   checkForCollectionTag,
   closeCollectionPopover,
   selectCollection,
-  extractCollectionFromContent: extractCollection,
-} = useCollections(textareaRef, newMessage);
+} = useCollections(newMessage);
 
 // Extract suggestion handling from composable
-const { suggestionText, updateSuggestion, completeCommand, getTypedPart } =
-  useSuggestions(
-    textareaRef,
-    newMessage,
-    props.commandTypes,
-    props.specialCommands,
-    computed(() => props.overviewType) // Pass current overview type
-  );
+const {
+  suggestionText,
+  updateSuggestion,
+  completeCommand,
+  getTypedPart,
+  taskStates,
+} = useSuggestions(newMessage);
 
 // Editing state
 const isEditing = ref(false);
@@ -177,77 +158,111 @@ const submitMessage = async () => {
   const messageText = newMessage.value.trim();
   if (!messageText) return;
 
-  if (props.handleSpecialCommands(messageText)) {
+  if (handleSpecialCommands(messageText)) {
     newMessage.value = "";
     return;
   }
 
-  const { type, content } = props.parseMessage(messageText);
+  const { type, content } = parseMessage(messageText);
 
-  if (!content && type !== "edit") {
+  if (!content && type !== "edit" && type !== "delete") {
     console.warn("Cannot submit empty content after command.");
     return;
   }
 
   switch (type) {
     case "delete":
-      emit("delete-tasks");
+      deleteSelectedTasks();
+      newMessage.value = "";
       break;
 
     case "move-to":
+      // Check if the content (state) is valid
+      if (!content) {
+        console.warn("No state specified for move-to command");
+        return;
+      }
+
+      // Verify if it's one of the valid states
+      if (!taskStates.includes(content)) {
+        console.warn(`Invalid task state: ${content}`);
+        return;
+      }
+
       if (
-        props.selectedTasks &&
-        props.selectedTasks.length > 0 &&
-        props.focusedTaskId !== null
+        selectedTaskIds.value &&
+        selectedTaskIds.value.length > 0 &&
+        focusedTaskId.value !== null
       ) {
-        emit("move-tasks", {
-          selectedTasks: props.selectedTasks,
-          currentTaskId: props.focusedTaskId as number,
+        moveTasks({
+          selectedTasks: selectedTaskIds.value,
+          currentTaskId: focusedTaskId.value,
           newState: content,
         });
+        // Clear the input after successful command
+        newMessage.value = "";
+      } else {
+        console.warn("No tasks selected to move");
       }
       break;
 
-    case "edit":
-      if (isEditing.value) {
-        if (editingTaskId.value !== null) {
-          emit("edit-task", {
-            taskId: editingTaskId.value,
-            newContent: messageText,
-          });
-          isEditing.value = false;
-          editingTaskId.value = null;
-          newMessage.value = "";
-        }
-      } else {
-        if (props.focusedTaskId !== null) {
-          isEditing.value = true;
-          editingTaskId.value = props.focusedTaskId;
-          newMessage.value = content;
-        } else {
-          console.warn("No task selected for editing.");
-        }
-      }
-      break;
+    // case "edit":
+    //   if (isEditing.value) {
+    //     if (editingTaskId.value !== null) {
+    //       editTask({
+    //         taskId: editingTaskId.value,
+    //         newContent: messageText,
+    //       });
+    //       isEditing.value = false;
+    //       editingTaskId.value = null;
+    //       newMessage.value = "";
+    //     }
+    //   } else {
+    //     if (props.focusedTaskId !== null) {
+    //       isEditing.value = true;
+    //       editingTaskId.value = props.focusedTaskId;
+    //       newMessage.value = content;
+    //     } else {
+    //       console.warn("No task selected for editing.");
+    //     }
+    //   }
+    //   break;
   }
   // ...existing logic...
 };
 
-function getAllStates() {
-  // You may want to fetch this from a config or constant
-  return ["todo", "in-progress", "done", "archived"];
-}
+function handleSpecialCommands(message: string): boolean {
+  const showCommandResult = handleShowCommand(message);
+  const closeCommandResult = handleCloseOverviewCommand(message);
+  const aiOverviewCommandResult = handleAiOverviewCommand(message);
+  const canvasCommandResult = handleCanvasCommand(message);
+  const closeCanvasCommandResult = handleCloseCanvasCommand(message);
 
-function handleTaskCommand(command: string) {
-  newMessage.value = command;
-  submitMessage();
-}
+  if (showCommandResult.success) {
+    // If it's a /show task command and we should activate task focus
+    if (showCommandResult.activateTaskFocus) {
+      console.log("Should activate task focus");
+      // Add a small delay to ensure the overview section is fully rendered
+      setTimeout(() => {
+        console.log(
+          "Attempting to activate task focus",
+          overviewSectionRef.value
+        );
+        if (overviewSectionRef.value) {
+          activateTaskFocus();
+        }
+      }, 100); // Small delay to ensure DOM is updated
+    }
+    return true;
+  }
 
-const editingChip = computed(() => {
-  return isEditing.value
-    ? "Editing task... (Press Enter to save, Esc to cancel)"
-    : "";
-});
+  return (
+    closeCommandResult.success ||
+    aiOverviewCommandResult.success ||
+    canvasCommandResult.success ||
+    closeCanvasCommandResult.success
+  );
+}
 </script>
 
 <style lang="scss" scoped>

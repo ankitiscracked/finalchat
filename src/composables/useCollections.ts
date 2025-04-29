@@ -6,7 +6,8 @@ import {
   findCollectionByName,
 } from "../services/collectionService";
 
-export function useCollections(textareaRef: any, newMessage: any) {
+export function useCollections(newMessage: any) {
+  const { chatInputTextAreaRef: textareaRef } = useGlobalElementAffordances();
   const showCollectionPopover = ref(false);
   const collectionPopoverPosition = ref<{ top: number; left: number }>({
     top: 0,
@@ -39,18 +40,20 @@ export function useCollections(textareaRef: any, newMessage: any) {
     console.log("checkForCollectionTag called:", {
       message,
       cursorPos,
-      isEventOrNoteCmd: /^\/(event|note)\s+/i.test(message)
+      isEventOrNoteCmd: /^\/(event|note)\s+/i.test(message),
     });
 
     // Check if we're typing within an event or note command - look at the text before cursor
     const textBeforeCursor = message.substring(0, cursorPos);
-    const isEventOrNoteCommand = /^\/(event|note|default)\s+/i.test(textBeforeCursor);
-    
+    const isEventOrNoteCommand = /^\/(event|note|default)\s+/i.test(
+      textBeforeCursor
+    );
+
     console.log("Event/Note command check:", {
       textBeforeCursor,
-      isEventOrNoteCommand
+      isEventOrNoteCommand,
     });
-    
+
     if (!isEventOrNoteCommand) {
       console.log("Not in an event or note command");
       if (showCollectionPopover.value) {
@@ -61,29 +64,30 @@ export function useCollections(textareaRef: any, newMessage: any) {
 
     // Look for @ character before cursor position
     const atIndex = textBeforeCursor.lastIndexOf("@");
-    
+
     console.log("@ check:", {
       atIndex,
       textBeforeCursor,
-      popoverVisible: showCollectionPopover.value
+      popoverVisible: showCollectionPopover.value,
     });
 
     if (atIndex !== -1 && !showCollectionPopover.value) {
       // Make sure the @ is not part of another word
-      const charBeforeAt =
-        atIndex > 0 ? textBeforeCursor[atIndex - 1] : "";
+      const charBeforeAt = atIndex > 0 ? textBeforeCursor[atIndex - 1] : "";
       const isValidAtPosition = charBeforeAt === "" || /\s/.test(charBeforeAt);
-      
+
       console.log("@ validation:", {
         charBeforeAt,
-        isValidAtPosition
+        isValidAtPosition,
       });
-      
+
       if (isValidAtPosition) {
         // Position the popover next to the @ character
         calculatePopoverPosition(atIndex);
         showCollectionPopover.value = true;
-        console.log("Popover shown", { position: collectionPopoverPosition.value });
+        console.log("Popover shown", {
+          position: collectionPopoverPosition.value,
+        });
       }
     } else if (atIndex === -1 && showCollectionPopover.value) {
       // Close popover if there's no @ anymore
@@ -158,11 +162,15 @@ export function useCollections(textareaRef: any, newMessage: any) {
     // First, check if there's already a collection tag in the message
     const message = newMessage.value;
     const existingCollectionMatch = message.match(/\s+in\s+@\S+$/i);
-    
+
     if (existingCollectionMatch) {
       // If there's already a collection tag, replace it with the new one
-      newMessage.value = message.substring(0, message.length - existingCollectionMatch[0].length).trim() + 
-                          " in @" + collection.name;
+      newMessage.value =
+        message
+          .substring(0, message.length - existingCollectionMatch[0].length)
+          .trim() +
+        " in @" +
+        collection.name;
     } else {
       // If no existing collection, find the @ the user was typing
       const cursorPos = textareaRef.value.selectionStart;
@@ -173,11 +181,13 @@ export function useCollections(textareaRef: any, newMessage: any) {
         // Remove partial collection tag (@something)
         const textAfterAt = message.substring(atIndex);
         const spaceIndex = textAfterAt.search(/\s/);
-        const endOfAtWord = spaceIndex !== -1 ? atIndex + spaceIndex : message.length;
+        const endOfAtWord =
+          spaceIndex !== -1 ? atIndex + spaceIndex : message.length;
 
         // Get the cleaned message without the partial collection tag
-        const cleanedMessage = message.substring(0, atIndex) + 
-                              (spaceIndex !== -1 ? message.substring(endOfAtWord) : "");
+        const cleanedMessage =
+          message.substring(0, atIndex) +
+          (spaceIndex !== -1 ? message.substring(endOfAtWord) : "");
 
         // Append collection at the end
         newMessage.value = cleanedMessage.trim() + " in @" + collection.name;
@@ -211,7 +221,10 @@ export function useCollections(textareaRef: any, newMessage: any) {
       const collectionName = collectionMatch[1];
 
       // Find collection by name
-      const collection = findCollectionByName(collections.value, collectionName);
+      const collection = findCollectionByName(
+        collections.value,
+        collectionName
+      );
       if (collection) {
         collectionId = collection.id;
         // Remove the collection tag from the content

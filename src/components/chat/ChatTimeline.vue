@@ -45,36 +45,16 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{
-  timeline: TimelineItemRecord[];
-  projects: any[];
-}>();
+import { getProjectName } from "../../services/projectService";
+import { formatTime, getIconClass } from "../../services/timelineService";
 
 const chatTimelineRef = ref<HTMLElement | null>(null);
-
-// Computed property to group timeline items by date
-const groupedTimeline = computed(() => {
-  return groupItemsByDate(props.timeline);
-});
-
+const { allItemsGroupedByDate: groupedTimeline } = useTimeline();
+const { projects } = useProjects("");
 // Project name getter wrapper
 const getProjectNameWrapper = (projectId: number): string | null => {
-  return getProjectName(props.projects, projectId);
+  return getProjectName(projects.value, projectId);
 };
-
-// Function to scroll to the bottom of the chat timeline
-const scrollToBottom = async () => {
-  await nextTick(); // Wait for DOM update
-  const timelineEl = chatTimelineRef.value;
-  if (timelineEl) {
-    timelineEl.scrollTop = timelineEl.scrollHeight;
-  }
-};
-
-// Expose functions to parent
-defineExpose({
-  scrollToBottom,
-});
 </script>
 
 <style lang="scss" scoped>

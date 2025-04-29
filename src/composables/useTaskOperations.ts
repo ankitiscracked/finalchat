@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { deleteItems, updateItem, type TimelineItemRecord } from '../services/indexedDB';
 import { loadTimelineItems } from '../services/timelineService';
 import { useTaskSelection } from './useTaskSelection';
@@ -6,6 +6,9 @@ import { useTaskSelection } from './useTaskSelection';
 // Create a state object to hold our timeline data
 const timeline = ref<TimelineItemRecord[]>([]);
 const isLoading = ref(false);
+
+// Cache of task indices for quick lookup
+const taskIndexMap = ref(new Map<number, number>());
 
 export function useTaskOperations() {
   const { selectedTasks, clearSelection, focusState } = useTaskSelection();
@@ -16,6 +19,8 @@ export function useTaskOperations() {
       isLoading.value = true;
       timeline.value = await loadTimelineItems();
       console.log(`Loaded ${timeline.value.length} items from IndexedDB.`);
+      // Clear the task index map whenever timeline data changes
+      taskIndexMap.value.clear();
     } catch (error) {
       console.error("Error loading timeline items:", error);
       timeline.value = [];
@@ -23,6 +28,26 @@ export function useTaskOperations() {
       isLoading.value = false;
     }
     return timeline.value;
+  };
+
+  // Helper function to get task index in the tasks array
+  const getTaskIndex = (task: TimelineItemRecord): number => {
+    if (!task.id) {
+      throw new Error("Task is missing an id. All tasks must have a valid id.");
+    }
+
+    // Filter to get only tasks
+    const tasks = timeline.value.filter(item => item.type === "task");
+
+    // Update taskIndexMap whenever tasks change
+    if (taskIndexMap.value.size !== tasks.length) {
+      taskIndexMap.value.clear();
+      tasks.forEach((task, index) => {
+        if (task.id) taskIndexMap.value.set(task.id, index);
+      });
+    }
+
+    return taskIndexMap.value.get(task.id) ?? -1;
   };
 
   // Function to get tasks to delete
@@ -91,12 +116,20 @@ export function useTaskOperations() {
     }
   };
 
+  // Get only tasks (filtered from timeline)
+  const tasks = computed(() => {
+    return timeline.value.filter(item => item.type === "task");
+  });
+
   return {
     timeline,
+    tasks,
     isLoading,
     loadTimelineData,
     deleteSelectedTasks,
     editTask,
-    moveTasks
+    moveTasks,
+    getTaskIndex,
+    taskIndexMap
   };
 }

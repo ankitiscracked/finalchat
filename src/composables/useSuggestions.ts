@@ -1,39 +1,137 @@
-import { ref, watch, nextTick } from "vue";
+import { ref, watch, nextTick, Ref } from "vue";
 
-export function useSuggestions(
-  textareaRef: any,
-  newMessage: any,
-  commandTypes: string[],
-  specialCommands: string[],
-  currentOverviewType: any = ref("task") // Add overview type parameter with default
-) {
+interface PrefixEntry {
+  commands: string[];
+  isUnique: boolean;
+}
+
+export function useSuggestions(newMessage: Ref<string>) {
+  const { specialCommands, commandTypes, overviewType } = useCommands();
+  const { chatInputTextAreaRef: textareaRef } = useGlobalElementAffordances();
   const suggestionText = ref("");
 
   // Command constraints mapping for contextual suggestions
   const commandConstraints = {
-    'move-to': { allowedOverviewTypes: ['task'] },
+    "move-to": { allowedOverviewTypes: ["task"] },
     // Add more constrained commands here as needed
   };
 
+  // Define available task states
+  const taskStates = ["todo", "in-progress", "done"];
+
+  // Command abbreviations mapping
+  const abbreviationMap = {
+    "del": "delete",
+    "mov": "move-to",
+    "ed": "edit",
+    "sho": "show",
+    "ai-ov": "ai-overview",
+  };
+
+  // Reverse mapping for command lookup
+  const fullCommandMap = Object.entries(abbreviationMap).reduce(
+    (acc, [abbr, full]) => {
+      acc[full] = abbr;
+      return acc;
+    },
+    {} as Record<string, string>
+  );
+
+  // Build command prefix map
+  const prefixMap = new Map<string, PrefixEntry>();
+  const buildPrefixMap = () => {
+    // Clear the map
+    prefixMap.clear();
+
+    // Get available commands based on current context
+    const availableCommands = commandTypes.filter((cmd) => 
+      isCommandAvailable(cmd, overviewType.value)
+    );
+
+    // Add special commands
+    const allCommands = [...availableCommands, ...specialCommands];
+
+    // Add all command prefixes to the map
+    allCommands.forEach(command => {
+      // Add prefixes for the full command
+      for (let i = 1; i <= command.length; i++) {
+        const prefix = command.substring(0, i);
+        addToPrefixMap(prefix, command);
+      }
+
+      // Add prefixes for abbreviations if available
+      const abbr = fullCommandMap[command];
+      if (abbr) {
+        for (let i = 1; i <= abbr.length; i++) {
+          const prefix = abbr.substring(0, i);
+          addToPrefixMap(prefix, command);
+        }
+      }
+    });
+
+    // Update uniqueness flags in the map
+    for (const [prefix, entry] of prefixMap.entries()) {
+      entry.isUnique = entry.commands.length === 1;
+    }
+  };
+
+  // Helper function to add a command to the prefix map
+  const addToPrefixMap = (prefix: string, command: string) => {
+    if (!prefixMap.has(prefix)) {
+      prefixMap.set(prefix, { commands: [], isUnique: false });
+    }
+    
+    const entry = prefixMap.get(prefix)!;
+    if (!entry.commands.includes(command)) {
+      entry.commands.push(command);
+    }
+  };
+
+  // Build task state prefix map
+  const statesPrefixMap = new Map<string, PrefixEntry>();
+  const buildStatesPrefixMap = () => {
+    // Clear the map
+    statesPrefixMap.clear();
+
+    // Add all state prefixes to the map
+    taskStates.forEach(state => {
+      for (let i = 1; i <= state.length; i++) {
+        const prefix = state.substring(0, i);
+        
+        if (!statesPrefixMap.has(prefix)) {
+          statesPrefixMap.set(prefix, { commands: [], isUnique: false });
+        }
+        
+        const entry = statesPrefixMap.get(prefix)!;
+        if (!entry.commands.includes(state)) {
+          entry.commands.push(state);
+        }
+      }
+    });
+
+    // Update uniqueness flags in the map
+    for (const [prefix, entry] of statesPrefixMap.entries()) {
+      entry.isUnique = entry.commands.length === 1;
+    }
+  };
+
   // Utility function to check if a command is available in the current context
-  const isCommandAvailable = (command: string, overviewType: string): boolean => {
+  const isCommandAvailable = (
+    command: string,
+    overviewType: string
+  ): boolean => {
     const constraints = commandConstraints[command];
     return !constraints || constraints.allowedOverviewTypes.includes(overviewType);
   };
 
-  const commandPatterns = {
-    fullCommand: (commandName) => new RegExp(`^\\/${commandName}\\s+$`),
-    partialCommand: (commandName) =>
-      new RegExp(`^\\/${commandName}\\s+(\\w*)$`),
-  };
+  // Initialize prefix maps
+  buildPrefixMap();
+  buildStatesPrefixMap();
 
-  const isFullCommand = (textBeforeCursor, commandName) => {
-    return textBeforeCursor.match(commandPatterns.fullCommand(commandName));
-  };
-
-  const isPartialCommand = (textBeforeCursor, commandName) => {
-    return textBeforeCursor.match(commandPatterns.partialCommand(commandName));
-  };
+  // Watch for changes in overview type to rebuild the prefix map
+  watch(overviewType, () => {
+    buildPrefixMap();
+  });
 
   // Watch for changes in the input message to update suggestion
   watch(newMessage, () => {
@@ -55,132 +153,124 @@ export function useSuggestions(
       return;
     }
 
-    // --- SUGGESTION LOGIC FOR TASK COMMANDS ---
-    // List of supported commands and their abbreviations
-    const commandAbbreviations = [
-      { full: "delete", abbr: "del" },
-      { full: "move-to", abbr: "mov" },
-      { full: "edit", abbr: "ed" },
-      { full: "show", abbr: "sho" },
-      { full: "ai-overview", abbr: "ai-ov" },
-    ];
+    // Command pattern detection
+    const commandPattern = /^\/([a-z0-9-]*)$/;
+    const commandWithArgPattern = /^\/([a-z0-9-]+)\s+([a-z0-9-]*)$/;
+    
+    // Handle /command pattern
+    const commandMatch = textBeforeCursor.match(commandPattern);
+    if (commandMatch) {
+      const partialCommand = commandMatch[1].toLowerCase();
+      suggestMatchingCommand(partialCommand);
+      return;
+    }
 
-    for (const { full, abbr } of commandAbbreviations) {
-      // Skip commands that aren't available in current context
-      if (!isCommandAvailable(full, currentOverviewType.value)) continue;
+    // Handle /command arg pattern
+    const argMatch = textBeforeCursor.match(commandWithArgPattern);
+    if (argMatch) {
+      const command = argMatch[1].toLowerCase();
+      const partialArg = argMatch[2].toLowerCase();
       
-      if (isFullCommand(textBeforeCursor, full) || isFullCommand(textBeforeCursor, abbr)) {
-        suggestFirstCommandType();
+      // Resolve command to full name if it's an abbreviation
+      const fullCommand = abbreviationMap[command] || command;
+
+      // Special case for move-to command with argument
+      if (fullCommand === "move-to") {
+        suggestMatchingTaskState(partialArg);
         return;
       }
-      if (isPartialCommand(textBeforeCursor, full) || isPartialCommand(textBeforeCursor, abbr)) {
-        suggestMatchingCommandType(
-          textBeforeCursor,
-          commandPatterns.partialCommand(full)
-        );
+      
+      // Handle other commands with arguments
+      if (["show", "ai-overview"].includes(fullCommand)) {
+        suggestMatchingCommandType(partialArg);
         return;
       }
     }
 
-    if (isTypingCommand(textBeforeCursor, cursorPos)) {
-      suggestMatchingCommandOrSpecialCommand(textBeforeCursor);
-    } else {
-      clearSuggestion();
-    }
+    clearSuggestion();
   };
 
-  const hasCharactersAfterCursor = (textAfterCursor) =>
+  const hasCharactersAfterCursor = (textAfterCursor: string) =>
     textAfterCursor.trim() !== "";
 
   const clearSuggestion = () => {
     suggestionText.value = "";
   };
 
-  const isTypingCommand = (textBeforeCursor, cursorPos) => {
-    const slashIndex = textBeforeCursor.lastIndexOf("/");
-    const spaceAfterSlashIndex = textBeforeCursor.indexOf(" ", slashIndex);
-    return (
-      slashIndex !== -1 &&
-      (spaceAfterSlashIndex === -1 || spaceAfterSlashIndex > cursorPos) &&
-      !/\s/.test(textBeforeCursor.substring(slashIndex + 1))
-    );
-  };
-
-  const suggestFirstCommandType = () => {
-    suggestionText.value = commandTypes[0];
-  };
-
-  const suggestMatchingCommandType = (textBeforeCursor, regex) => {
-    const match = textBeforeCursor.match(regex);
-    if (match) {
-      const partialType = match[1].toLowerCase();
-      const matchingCommand = commandTypes.find(
-        (cmd) => cmd.startsWith(partialType) && cmd !== partialType
+  // Suggest a matching command based on partial input
+  const suggestMatchingCommand = (partialCommand: string) => {
+    if (!partialCommand) {
+      // Simply suggest the first available command if nothing typed yet
+      const availableCommands = commandTypes.filter(cmd => 
+        isCommandAvailable(cmd, overviewType.value)
       );
-      suggestionText.value = matchingCommand
-        ? matchingCommand.substring(partialType.length)
-        : "";
-    }
-  };
-
-  const suggestMatchingCommandOrSpecialCommand = (textBeforeCursor) => {
-    const slashIndex = textBeforeCursor.lastIndexOf("/");
-    const partialCommand = textBeforeCursor
-      .substring(slashIndex + 1)
-      .toLowerCase();
-
-    // Abbreviation support for task commands
-    const abbrMap = {
-      del: "delete",
-      mov: "move-to",
-      ed: "edit",
-      sho: "show",
-      "ai-ov": "ai-overview",
-    };
-    
-    // If the user types an abbreviation, suggest the full command
-    for (const abbr in abbrMap) {
-      const fullCmd = abbrMap[abbr];
-      // Skip commands that aren't available in current context
-      if (!isCommandAvailable(fullCmd, currentOverviewType.value)) continue;
-      
-      if (partialCommand.startsWith(abbr) && fullCmd !== partialCommand) {
-        suggestionText.value = fullCmd.substring(partialCommand.length);
-        return;
+      if (availableCommands.length > 0) {
+        suggestionText.value = availableCommands[0];
       }
-    }
-
-    const matchingSpecialCommand = specialCommands.find(
-      (cmd) => cmd.startsWith(partialCommand) && cmd !== partialCommand
-    );
-
-    if (matchingSpecialCommand) {
-      suggestionText.value = matchingSpecialCommand.substring(
-        partialCommand.length
-      );
       return;
     }
 
-    // Filter available commands based on current context
-    const availableCommands = commandTypes.filter(cmd => 
-      isCommandAvailable(cmd, currentOverviewType.value)
+    // Check if this partial command exists in our prefix map
+    if (prefixMap.has(partialCommand)) {
+      const entry = prefixMap.get(partialCommand)!;
+      
+      // If this prefix uniquely identifies a command, suggest the rest of it
+      if (entry.isUnique) {
+        const fullCommand = entry.commands[0];
+        suggestionText.value = fullCommand.substring(partialCommand.length);
+      }
+    } else {
+      clearSuggestion();
+    }
+  };
+
+  // Suggest a matching task state based on partial input
+  const suggestMatchingTaskState = (partialState: string) => {
+    if (!partialState) {
+      // Simply suggest the first task state if nothing typed yet
+      suggestionText.value = taskStates[0];
+      return;
+    }
+
+    // Check if this partial state exists in our prefix map
+    if (statesPrefixMap.has(partialState)) {
+      const entry = statesPrefixMap.get(partialState)!;
+      
+      // If this prefix uniquely identifies a state, suggest the rest of it
+      if (entry.isUnique) {
+        const fullState = entry.commands[0];
+        suggestionText.value = fullState.substring(partialState.length);
+      }
+    } else {
+      clearSuggestion();
+    }
+  };
+
+  // Suggest a matching command type for commands like /show or /ai-overview
+  const suggestMatchingCommandType = (partialType: string) => {
+    if (!partialType) {
+      // Simply suggest the first command type if nothing typed yet
+      suggestionText.value = commandTypes[0];
+      return;
+    }
+
+    // Find a matching command type
+    const matchingType = commandTypes.find(
+      type => type.startsWith(partialType) && type !== partialType
     );
 
-    const matchingCommand = availableCommands.find(
-      (cmd) => cmd.startsWith(partialCommand) && cmd !== partialCommand
-    );
-
-    suggestionText.value = matchingCommand
-      ? matchingCommand.substring(partialCommand.length)
-      : "";
+    if (matchingType) {
+      suggestionText.value = matchingType.substring(partialType.length);
+    } else {
+      clearSuggestion();
+    }
   };
 
   // Complete the command when Tab is pressed
   const completeCommand = () => {
     if (suggestionText.value) {
       const currentMessage = newMessage.value;
-      const cursorPos =
-        textareaRef.value?.selectionStart ?? currentMessage.length;
+      const cursorPos = textareaRef.value?.selectionStart ?? currentMessage.length;
       const textBeforeCursor = currentMessage.substring(0, cursorPos);
       const textAfterCursor = currentMessage.substring(cursorPos);
 
@@ -189,97 +279,64 @@ export function useSuggestions(
         return;
       }
 
-      // Handle /show command completion
-      const showMatch = textBeforeCursor.match(/^\/show\s+(\w*)$/);
-      if (showMatch) {
-        const partialType = showMatch[1];
-        const fullType = partialType + suggestionText.value;
-
-        newMessage.value = "/show " + fullType + textAfterCursor;
-
+      // Detect command patterns
+      const commandPattern = /^\/([a-z0-9-]*)$/;
+      const commandWithArgPattern = /^\/([a-z0-9-]+)\s+([a-z0-9-]*)$/;
+      
+      // Handle /command pattern
+      const commandMatch = textBeforeCursor.match(commandPattern);
+      if (commandMatch) {
+        const partialCommand = commandMatch[1];
+        const fullCommand = partialCommand + suggestionText.value;
+        
+        // Complete the command
+        newMessage.value = `/${fullCommand}${textAfterCursor}`;
+        
+        // Move cursor after the completed command
         nextTick(() => {
-          const newCursorPos = "/show ".length + fullType.length;
+          const newCursorPos = fullCommand.length + 1; // +1 for /
+          textareaRef.value?.focus();
+          textareaRef.value?.setSelectionRange(newCursorPos, newCursorPos);
+          suggestionText.value = "";
+          
+          // Add a space after the command if it's not a special command
+          if (!specialCommands.includes(fullCommand as any)) {
+            newMessage.value =
+              newMessage.value.substring(0, newCursorPos) +
+              " " +
+              newMessage.value.substring(newCursorPos);
+            
+            // Move cursor after the space
+            nextTick(() => {
+              textareaRef.value?.setSelectionRange(
+                newCursorPos + 1,
+                newCursorPos + 1
+              );
+            });
+          }
+        });
+        
+        return;
+      }
+      
+      // Handle /command arg pattern
+      const argMatch = textBeforeCursor.match(commandWithArgPattern);
+      if (argMatch) {
+        const command = argMatch[1];
+        const partialArg = argMatch[2];
+        const fullArg = partialArg + suggestionText.value;
+        
+        // Complete the command with argument
+        newMessage.value = `/${command} ${fullArg}${textAfterCursor}`;
+        
+        // Move cursor after the completed command with argument
+        nextTick(() => {
+          const newCursorPos = command.length + fullArg.length + 2; // +2 for / and space
           textareaRef.value?.focus();
           textareaRef.value?.setSelectionRange(newCursorPos, newCursorPos);
           suggestionText.value = "";
         });
-        return;
       }
-
-      // Handle /ai-overview command completion
-      const aiOverviewMatch = textBeforeCursor.match(/^\/ai-overview\s+(\w*)$/);
-      if (aiOverviewMatch) {
-        const partialType = aiOverviewMatch[1];
-        const fullType = partialType + suggestionText.value;
-
-        newMessage.value = "/ai-overview " + fullType + textAfterCursor;
-
-        nextTick(() => {
-          const newCursorPos = "/ai-overview ".length + fullType.length;
-          textareaRef.value?.focus();
-          textareaRef.value?.setSelectionRange(newCursorPos, newCursorPos);
-          suggestionText.value = "";
-        });
-        return;
-      }
-
-      // Check if it's a special command (like close-overview)
-      const specialCommandMatch = specialCommands.find(
-        (cmd) =>
-          textBeforeCursor ===
-          `/${cmd.substring(0, cmd.length - suggestionText.value.length)}`
-      );
-
-      if (specialCommandMatch) {
-        // Complete the special command
-        newMessage.value = `/${specialCommandMatch}` + textAfterCursor;
-
-        nextTick(() => {
-          const newCursorPos = specialCommandMatch.length + 1; // +1 for /
-          textareaRef.value?.focus();
-          textareaRef.value?.setSelectionRange(newCursorPos, newCursorPos);
-          suggestionText.value = "";
-        });
-        return;
-      }
-
-      // Regular command completion
-      const slashIndex = textBeforeCursor.lastIndexOf("/");
-      const partialCommand = textBeforeCursor.substring(slashIndex + 1);
-
-      // Complete the command
-      const fullCommand = partialCommand + suggestionText.value;
-      newMessage.value =
-        currentMessage.substring(0, slashIndex) +
-        `/${fullCommand}` +
-        textAfterCursor;
-
-      // Move cursor after the completed command
-      nextTick(() => {
-        const newCursorPos = slashIndex + fullCommand.length + 1; // +1 for /
-        textareaRef.value?.focus();
-        textareaRef.value?.setSelectionRange(newCursorPos, newCursorPos);
-        suggestionText.value = ""; // Clear suggestion
-
-        // Add a space after the command if there isn't one already
-        if (
-          newMessage.value[newCursorPos] !== " " &&
-          !specialCommands.includes(fullCommand as any)
-        ) {
-          newMessage.value =
-            newMessage.value.substring(0, newCursorPos) +
-            " " +
-            newMessage.value.substring(newCursorPos);
-
-          // Move cursor after the space
-          nextTick(() => {
-            textareaRef.value?.setSelectionRange(
-              newCursorPos + 1,
-              newCursorPos + 1
-            );
-          });
-        }
-      });
     }
   };
 
@@ -291,22 +348,20 @@ export function useSuggestions(
     const cursorPos = textareaRef.value.selectionStart;
     const textBeforeCursor = currentMessage.substring(0, cursorPos);
 
-    // Check for /show command
-    const showMatch = textBeforeCursor.match(/^\/show\s+(\w*)$/);
-    if (showMatch) {
-      return `/show ${showMatch[1]}`;
+    // Command pattern detection
+    const commandPattern = /^\/([a-z0-9-]*)$/;
+    const commandWithArgPattern = /^\/([a-z0-9-]+)\s+([a-z0-9-]*)$/;
+    
+    // Handle /command pattern
+    const commandMatch = textBeforeCursor.match(commandPattern);
+    if (commandMatch) {
+      return textBeforeCursor;
     }
-
-    // Check for /ai-overview command
-    const aiOverviewMatch = textBeforeCursor.match(/^\/ai-overview\s+(\w*)$/);
-    if (aiOverviewMatch) {
-      return `/ai-overview ${aiOverviewMatch[1]}`;
-    }
-
-    // Regular command
-    const slashIndex = textBeforeCursor.lastIndexOf("/");
-    if (slashIndex !== -1) {
-      return textBeforeCursor.substring(slashIndex);
+    
+    // Handle /command arg pattern
+    const argMatch = textBeforeCursor.match(commandWithArgPattern);
+    if (argMatch) {
+      return textBeforeCursor;
     }
 
     return "";
@@ -317,6 +372,7 @@ export function useSuggestions(
     updateSuggestion,
     completeCommand,
     getTypedPart,
-    commandConstraints, // Export constraints for potential external usage
+    commandConstraints,
+    taskStates,
   };
 }
