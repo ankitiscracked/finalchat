@@ -36,7 +36,7 @@
       </div>
     </template>
     <!-- Show message if timeline is empty -->
-    <p v-else-if="!timeline.length" class="empty-chat">
+    <p v-else-if="isTimeLineEmpty" class="empty-chat">
       Your timeline is empty. Add items below!
     </p>
     <!-- Keep loading text only initially -->
@@ -49,12 +49,30 @@ import { getProjectName } from "../../services/projectService";
 import { formatTime, getIconClass } from "../../services/timelineService";
 
 const chatTimelineRef = ref<HTMLElement | null>(null);
-const { allItemsGroupedByDate: groupedTimeline } = useTimeline();
+const { allItemsGroupedByDate: groupedTimeline, isTimeLineEmpty } =
+  useTimeline();
 const { projects } = useProjects("");
 // Project name getter wrapper
 const getProjectNameWrapper = (projectId: number): string | null => {
   return getProjectName(projects.value, projectId);
 };
+
+watch(
+  groupedTimeline,
+  (value) => {
+    scrollChatTimelineToBotton();
+    console.log("Timeline updated", value);
+  },
+  { deep: true }
+);
+
+async function scrollChatTimelineToBotton() {
+  await nextTick();
+  const timelineElement = chatTimelineRef.value;
+  if (timelineElement) {
+    timelineElement.scrollTop = timelineElement.scrollHeight;
+  }
+}
 </script>
 
 <style lang="scss" scoped>

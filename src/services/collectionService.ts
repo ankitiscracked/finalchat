@@ -1,11 +1,13 @@
-import { getAllCollections, addCollection, getCollectionById, type CollectionRecord } from './indexedDB';
+import { addItem, getAllItems, getItemById, type CollectionRecord } from './indexedDB';
+
+// Store name constant
+const COLLECTIONS_STORE = "collections";
 
 /**
  * Load all collections from the database
  */
 export async function loadCollections(): Promise<CollectionRecord[]> {
-  const collections = await getAllCollections();
-  return collections;
+  return getAllItems<CollectionRecord>(COLLECTIONS_STORE);
 }
 
 /**
@@ -31,7 +33,7 @@ export async function createCollection(name: string): Promise<CollectionRecord> 
   };
   
   // Add to database
-  const id = await addCollection(newCollection);
+  const id = await addItem<CollectionRecord>(COLLECTIONS_STORE, newCollection);
   
   // Return the complete collection
   return {
@@ -44,5 +46,5 @@ export async function createCollection(name: string): Promise<CollectionRecord> 
  * Get a collection by ID
  */
 export async function getCollection(id: number): Promise<CollectionRecord | null> {
-  return await getCollectionById(id);
+  return getItemById<CollectionRecord>(COLLECTIONS_STORE, id);
 }

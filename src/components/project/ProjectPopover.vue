@@ -49,6 +49,10 @@
 </template>
 
 <script setup lang="ts">
+import {
+  createProject as addProject,
+  loadProjects as getAllProjects,
+} from "../../services/projectService";
 const props = defineProps<{
   position?: { top: number; left: number };
 }>();
@@ -110,16 +114,7 @@ const createProject = async () => {
   if (!name) return;
 
   try {
-    const projectData = {
-      name,
-      createdAt: new Date(),
-    };
-
-    const projectId = await addProject(projectData);
-    const newProject: ProjectRecord = {
-      ...projectData,
-      id: projectId,
-    };
+    const newProject = await addProject(name);
 
     // Emit create event with the new project
     emit("create", newProject);

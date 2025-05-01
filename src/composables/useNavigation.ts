@@ -1,31 +1,21 @@
 import { ref, computed, nextTick } from "vue";
 import type { Ref } from "vue";
 
-export interface NavigationState {
-  isActive: boolean;
-  currentIndex: number;
-  currentItemId: number | null;
-}
-
 export interface NavigationOptions<T> {
   inputRef?: Ref<HTMLElement | null>;
   onAction?: (item: T, actionKey: string, event: KeyboardEvent) => void;
 }
+
+// Track selected item IDs
 
 export function useNavigation<T extends { id?: number | null }>(
   items: Ref<T[]>,
   options: NavigationOptions<T> = {}
 ) {
   const { chatInputTextAreaRef } = useGlobalElementAffordances();
+  const { navigationState, toggleSelection, clearSelection } =
+    useGlobalContext();
   // Shared state for focus/navigation
-  const navigationState = ref<NavigationState>({
-    isActive: false,
-    currentIndex: -1,
-    currentItemId: null,
-  });
-
-  // Track selected item IDs
-  const selectedItemIds = ref<number[]>([]);
 
   // Track DOM references to items
   const itemRefs = ref<(HTMLElement | undefined)[]>([]);
@@ -102,23 +92,6 @@ export function useNavigation<T extends { id?: number | null }>(
   };
 
   // Toggle selection for an item
-  const toggleSelection = (itemId: number) => {
-    const index = selectedItemIds.value.indexOf(itemId);
-    if (index === -1) {
-      // Add to selection
-      selectedItemIds.value = [...selectedItemIds.value, itemId];
-    } else {
-      // Remove from selection
-      selectedItemIds.value = selectedItemIds.value.filter(
-        (id) => id !== itemId
-      );
-    }
-  };
-
-  // Clear all selected items
-  const clearSelection = () => {
-    selectedItemIds.value = [];
-  };
 
   // Handle keyboard events for navigation and selection
   const handleKeydown = (event: KeyboardEvent) => {
@@ -186,16 +159,12 @@ export function useNavigation<T extends { id?: number | null }>(
   };
 
   return {
-    navigationState,
-    selectedItemIds,
     itemRefs,
     currentItem,
     setItemRef,
     activateNavigation,
     navigate,
     deactivateNavigation,
-    toggleSelection,
-    clearSelection,
     handleKeydown,
     getItemIndex,
     focusItemById,

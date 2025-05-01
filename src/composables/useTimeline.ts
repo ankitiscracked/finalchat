@@ -8,6 +8,14 @@ export function useTimeline() {
   const { events, refreshEvents } = useEvents();
   const { notes, refreshNotes } = useNotes();
 
+  watch(
+    notes,
+    (newNotes, oldNotes) => {
+      console.log("Notes changed:", { newNotes, oldNotes });
+    },
+    { deep: true }
+  );
+
   const allItemsGroupedByDate = computed(() => {
     const allItems = [...tasks.value, ...events.value, ...notes.value];
     const groupedItems: Record<string, TimelineItem[]> = {};
@@ -18,10 +26,24 @@ export function useTimeline() {
       }
       groupedItems[date].push(item);
     });
+    Object.keys(groupedItems).forEach((date) => {
+      groupedItems[date].sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+    });
     return Object.entries(groupedItems).sort(
-      (a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime()
+      (a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime()
     );
   });
+
+  watch(
+    allItemsGroupedByDate,
+    () => {
+      console.log("timeline updated");
+    },
+    { deep: true }
+  );
 
   const getItemsByType = (type: string) => {
     return computed(() => {
@@ -59,10 +81,19 @@ export function useTimeline() {
     }
   }
 
+  const isTimeLineEmpty = computed(() => {
+    return (
+      tasks.value.length === 0 &&
+      events.value.length === 0 &&
+      notes.value.length === 0
+    );
+  });
+
   return {
     allItemsGroupedByDate,
     getItemsByType,
     refreshTimeline,
     refreshItems,
+    isTimeLineEmpty,
   };
 }

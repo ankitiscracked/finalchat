@@ -2,7 +2,7 @@
   <div class="chat-input-area">
     <div class="input-wrapper">
       <textarea
-        :ref="(el) => setGlobalElementRef(el, 'chatInputTextArea')"
+        :ref="(el) => setGlobalElementRef(el as HTMLElement, 'chatInputTextArea')"
         id="chat-input"
         :placeholder="
           props.isDbReady
@@ -75,13 +75,12 @@ const {
   handleCanvasCommand,
   handleCloseCanvasCommand,
 } = useCommands();
-const { activateTaskFocus } = useFocusable();
-
 // Get task operations from composable
 const { deleteSelectedTasks, editTask, moveTasks } = useTaskOperations();
-const { parseMessage } = useCommands();
+const { executeCommand, messageIsCommand } = useCommands();
 const { selectedTaskIds, focusState } = useTaskSelection();
 const focusedTaskId = computed(() => focusState.value.currentTaskId);
+const { createNote } = useNotes();
 
 const newMessage = ref("");
 
@@ -155,114 +154,25 @@ const handleInput = (event: Event) => {
 
 // Handle commands
 const submitMessage = async () => {
-  const messageText = newMessage.value.trim();
-  if (!messageText) return;
+  try {
+    const messageText = newMessage.value.trim();
+    if (!messageText) return;
 
-  if (handleSpecialCommands(messageText)) {
-    newMessage.value = "";
-    return;
-  }
-
-  const { type, content } = parseMessage(messageText);
-
-  if (!content && type !== "edit" && type !== "delete") {
-    console.warn("Cannot submit empty content after command.");
-    return;
-  }
-
-  switch (type) {
-    case "delete":
-      deleteSelectedTasks();
+    if (messageIsCommand(messageText)) {
+      executeCommand(messageText);
       newMessage.value = "";
-      break;
-
-    case "move-to":
-      // Check if the content (state) is valid
-      if (!content) {
-        console.warn("No state specified for move-to command");
-        return;
-      }
-
-      // Verify if it's one of the valid states
-      if (!taskStates.includes(content)) {
-        console.warn(`Invalid task state: ${content}`);
-        return;
-      }
-
-      if (
-        selectedTaskIds.value &&
-        selectedTaskIds.value.length > 0 &&
-        focusedTaskId.value !== null
-      ) {
-        moveTasks({
-          selectedTasks: selectedTaskIds.value,
-          currentTaskId: focusedTaskId.value,
-          newState: content,
-        });
-        // Clear the input after successful command
-        newMessage.value = "";
-      } else {
-        console.warn("No tasks selected to move");
-      }
-      break;
-
-    // case "edit":
-    //   if (isEditing.value) {
-    //     if (editingTaskId.value !== null) {
-    //       editTask({
-    //         taskId: editingTaskId.value,
-    //         newContent: messageText,
-    //       });
-    //       isEditing.value = false;
-    //       editingTaskId.value = null;
-    //       newMessage.value = "";
-    //     }
-    //   } else {
-    //     if (props.focusedTaskId !== null) {
-    //       isEditing.value = true;
-    //       editingTaskId.value = props.focusedTaskId;
-    //       newMessage.value = content;
-    //     } else {
-    //       console.warn("No task selected for editing.");
-    //     }
-    //   }
-    //   break;
-  }
-  // ...existing logic...
-};
-
-function handleSpecialCommands(message: string): boolean {
-  const showCommandResult = handleShowCommand(message);
-  const closeCommandResult = handleCloseOverviewCommand(message);
-  const aiOverviewCommandResult = handleAiOverviewCommand(message);
-  const canvasCommandResult = handleCanvasCommand(message);
-  const closeCanvasCommandResult = handleCloseCanvasCommand(message);
-
-  if (showCommandResult.success) {
-    // If it's a /show task command and we should activate task focus
-    if (showCommandResult.activateTaskFocus) {
-      console.log("Should activate task focus");
-      // Add a small delay to ensure the overview section is fully rendered
-      setTimeout(() => {
-        console.log(
-          "Attempting to activate task focus",
-          overviewSectionRef.value
-        );
-        if (overviewSectionRef.value) {
-          activateTaskFocus();
-        }
-      }, 100); // Small delay to ensure DOM is updated
+      return;
     }
-    return true;
-  }
 
-  return (
-    closeCommandResult.success ||
-    aiOverviewCommandResult.success ||
-    canvasCommandResult.success ||
-    closeCanvasCommandResult.success
-  );
-}
+    // otherwise, submit the message as a new note
+    const note = await createNote(messageText);
+    if (note) {
+      newMessage.value = "";
+    }
+  } catch (error) {
+    console.error("Error submitting message:", error);
+  }
+};
 </script>
 
 <style lang="scss" scoped>

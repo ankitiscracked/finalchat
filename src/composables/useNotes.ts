@@ -1,13 +1,13 @@
-import { ref, computed, onMounted } from 'vue';
-import * as noteService from '../services/noteService';
-import type { NoteRecord } from '../services/indexedDB';
+import { ref, computed, onMounted } from "vue";
+import * as noteService from "../services/noteService";
+import type { NoteRecord } from "../services/indexedDB";
 
 /**
  * Composable for working with notes
  */
 export function useNotes() {
   // Reactive state
-  const notes = ref<NoteRecord[]>([]);
+  const notes = useState<NoteRecord[]>(() => []);
   const isLoading = ref(false);
   const isInitialized = ref(false);
 
@@ -16,13 +16,13 @@ export function useNotes() {
    */
   const initialize = async () => {
     if (isInitialized.value) return;
-    
+
     isLoading.value = true;
     try {
       notes.value = await noteService.getAllNotes();
       isInitialized.value = true;
     } catch (error) {
-      console.error('Failed to initialize notes:', error);
+      console.error("Failed to initialize notes:", error);
     } finally {
       isLoading.value = false;
     }
@@ -35,7 +35,9 @@ export function useNotes() {
    * Get notes for a specific collection
    */
   const getByCollection = (collectionId: number) => {
-    return computed(() => notes.value.filter(note => note.collectionId === collectionId));
+    return computed(() =>
+      notes.value.filter((note) => note.collectionId === collectionId)
+    );
   };
 
   /**
@@ -43,10 +45,12 @@ export function useNotes() {
    */
   const searchNotes = (query: string) => {
     if (!query.trim()) return computed(() => []);
-    
+
     const searchTerm = query.toLowerCase();
-    return computed(() => 
-      notes.value.filter(note => note.content.toLowerCase().includes(searchTerm))
+    return computed(() =>
+      notes.value.filter((note) =>
+        note.content.toLowerCase().includes(searchTerm)
+      )
     );
   };
 
@@ -60,7 +64,7 @@ export function useNotes() {
       notes.value = [newNote, ...notes.value];
       return newNote;
     } catch (error) {
-      console.error('Failed to create note:', error);
+      console.error("Failed to create note:", error);
       throw error;
     } finally {
       isLoading.value = false;
@@ -70,11 +74,14 @@ export function useNotes() {
   /**
    * Update a note
    */
-  const updateNote = async (id: number, updates: Partial<Omit<NoteRecord, 'id' | 'type'>>) => {
+  const updateNote = async (
+    id: number,
+    updates: Partial<Omit<NoteRecord, "id" | "type">>
+  ) => {
     isLoading.value = true;
     try {
       const updatedNote = await noteService.updateNote(id, updates);
-      const index = notes.value.findIndex(note => note.id === id);
+      const index = notes.value.findIndex((note) => note.id === id);
       if (index !== -1) {
         const updatedNotes = [...notes.value];
         updatedNotes[index] = updatedNote;
@@ -96,7 +103,7 @@ export function useNotes() {
     isLoading.value = true;
     try {
       await noteService.deleteNote(id);
-      notes.value = notes.value.filter(note => note.id !== id);
+      notes.value = notes.value.filter((note) => note.id !== id);
     } catch (error) {
       console.error(`Failed to delete note ${id}:`, error);
       throw error;
@@ -112,9 +119,11 @@ export function useNotes() {
     isLoading.value = true;
     try {
       await noteService.deleteMultipleNotes(ids);
-      notes.value = notes.value.filter(note => !ids.includes(note.id as number));
+      notes.value = notes.value.filter(
+        (note) => !ids.includes(note.id as number)
+      );
     } catch (error) {
-      console.error('Failed to delete notes:', error);
+      console.error("Failed to delete notes:", error);
       throw error;
     } finally {
       isLoading.value = false;
@@ -129,16 +138,16 @@ export function useNotes() {
     try {
       notes.value = await noteService.getAllNotes();
     } catch (error) {
-      console.error('Failed to refresh notes:', error);
+      console.error("Failed to refresh notes:", error);
     } finally {
       isLoading.value = false;
     }
   };
 
   return {
-    notes: computed(() => notes.value),
-    isLoading: computed(() => isLoading.value),
-    isInitialized: computed(() => isInitialized.value),
+    notes,
+    isLoading,
+    isInitialized,
     getByCollection,
     searchNotes,
     createNote,
@@ -146,6 +155,6 @@ export function useNotes() {
     deleteNote,
     deleteMultiple,
     refreshNotes,
-    initialize
+    initialize,
   };
 }

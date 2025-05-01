@@ -1,13 +1,13 @@
-import { ref, computed, onMounted } from 'vue';
-import * as eventService from '../services/eventService';
-import type { EventRecord } from '../services/indexedDB';
+import { ref, computed, onMounted } from "vue";
+import * as eventService from "../services/eventService";
+import type { EventRecord } from "../services/indexedDB";
 
 /**
  * Composable for working with events
  */
 export function useEvents() {
   // Reactive state
-  const events = ref<EventRecord[]>([]);
+  const events = useState<EventRecord[]>(() => []);
   const isLoading = ref(false);
   const isInitialized = ref(false);
 
@@ -16,13 +16,13 @@ export function useEvents() {
    */
   const initialize = async () => {
     if (isInitialized.value) return;
-    
+
     isLoading.value = true;
     try {
       events.value = await eventService.getAllEvents();
       isInitialized.value = true;
     } catch (error) {
-      console.error('Failed to initialize events:', error);
+      console.error("Failed to initialize events:", error);
     } finally {
       isLoading.value = false;
     }
@@ -35,42 +35,53 @@ export function useEvents() {
    * Get events for a specific project
    */
   const getByProject = (projectId: number) => {
-    return computed(() => events.value.filter(event => event.projectId === projectId));
+    return computed(() =>
+      events.value.filter((event) => event.projectId === projectId)
+    );
   };
 
   /**
    * Get events for a specific collection
    */
   const getByCollection = (collectionId: number) => {
-    return computed(() => events.value.filter(event => event.collectionId === collectionId));
+    return computed(() =>
+      events.value.filter((event) => event.collectionId === collectionId)
+    );
   };
 
   /**
    * Get events in a date range
    */
   const getByDateRange = (startDate: Date, endDate: Date) => {
-    return computed(() => events.value.filter(event => {
-      if (!event.eventDate) return false;
-      return event.eventDate >= startDate && event.eventDate <= endDate;
-    }));
+    return computed(() =>
+      events.value.filter((event) => {
+        if (!event.eventDate) return false;
+        return event.eventDate >= startDate && event.eventDate <= endDate;
+      })
+    );
   };
 
   /**
    * Create a new event
    */
   const createEvent = async (
-    content: string, 
-    projectId?: number, 
+    content: string,
+    projectId?: number,
     collectionId?: number,
     eventDate?: Date
   ) => {
     isLoading.value = true;
     try {
-      const newEvent = await eventService.createEvent(content, projectId, collectionId, eventDate);
+      const newEvent = await eventService.createEvent(
+        content,
+        projectId,
+        collectionId,
+        eventDate
+      );
       events.value = [newEvent, ...events.value];
       return newEvent;
     } catch (error) {
-      console.error('Failed to create event:', error);
+      console.error("Failed to create event:", error);
       throw error;
     } finally {
       isLoading.value = false;
@@ -80,11 +91,14 @@ export function useEvents() {
   /**
    * Update an event
    */
-  const updateEvent = async (id: number, updates: Partial<Omit<EventRecord, 'id' | 'type'>>) => {
+  const updateEvent = async (
+    id: number,
+    updates: Partial<Omit<EventRecord, "id" | "type">>
+  ) => {
     isLoading.value = true;
     try {
       const updatedEvent = await eventService.updateEvent(id, updates);
-      const index = events.value.findIndex(event => event.id === id);
+      const index = events.value.findIndex((event) => event.id === id);
       if (index !== -1) {
         const updatedEvents = [...events.value];
         updatedEvents[index] = updatedEvent;
@@ -106,7 +120,7 @@ export function useEvents() {
     isLoading.value = true;
     try {
       await eventService.deleteEvent(id);
-      events.value = events.value.filter(event => event.id !== id);
+      events.value = events.value.filter((event) => event.id !== id);
     } catch (error) {
       console.error(`Failed to delete event ${id}:`, error);
       throw error;
@@ -122,9 +136,11 @@ export function useEvents() {
     isLoading.value = true;
     try {
       await eventService.deleteMultipleEvents(ids);
-      events.value = events.value.filter(event => !ids.includes(event.id as number));
+      events.value = events.value.filter(
+        (event) => !ids.includes(event.id as number)
+      );
     } catch (error) {
-      console.error('Failed to delete events:', error);
+      console.error("Failed to delete events:", error);
       throw error;
     } finally {
       isLoading.value = false;
@@ -139,16 +155,16 @@ export function useEvents() {
     try {
       events.value = await eventService.getAllEvents();
     } catch (error) {
-      console.error('Failed to refresh events:', error);
+      console.error("Failed to refresh events:", error);
     } finally {
       isLoading.value = false;
     }
   };
 
   return {
-    events: computed(() => events.value),
-    isLoading: computed(() => isLoading.value),
-    isInitialized: computed(() => isInitialized.value),
+    events,
+    isLoading,
+    isInitialized,
     getByProject,
     getByCollection,
     getByDateRange,
@@ -157,6 +173,6 @@ export function useEvents() {
     deleteEvent,
     deleteMultiple,
     refreshEvents,
-    initialize
+    initialize,
   };
 }

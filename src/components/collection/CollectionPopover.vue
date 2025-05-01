@@ -64,7 +64,11 @@
 </template>
 
 <script setup lang="ts">
-// Props
+import {
+  createCollection as addCollection,
+  loadCollections as getAllCollections,
+} from "../../services/collectionService";
+
 const props = defineProps<{
   position: { top: number; left: number };
 }>();
@@ -168,7 +172,7 @@ async function createCollection() {
   if (!name) return;
 
   try {
-    const newCollection = await createCollection(name);
+    const newCollection = await addCollection(name);
     collections.value.push(newCollection);
     emit("create", newCollection);
   } catch (error) {

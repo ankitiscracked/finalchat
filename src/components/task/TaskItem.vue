@@ -5,9 +5,7 @@
       'overview-item',
       `item-${task.type}`,
       {
-        focused:
-          task.type === 'task' &&
-          isFocused,
+        focused: task.type === 'task' && isFocused,
       },
     ]"
     :tabindex="task.type === 'task' ? 0 : -1"
@@ -17,7 +15,7 @@
       <input
         type="checkbox"
         :checked="isSelected"
-        @change="$emit('toggle-selection', task.id)"
+        @change="$emit('toggle-selection', task.id!)"
       />
     </div>
     <span class="item-icon">
@@ -36,10 +34,7 @@
       </span>
 
       <!-- Show project for tasks with projectId -->
-      <span
-        v-if="task.type === 'task' && task.projectId"
-        class="item-project"
-      >
+      <span v-if="task.type === 'task' && task.projectId" class="item-project">
         in
         <span class="project-tag">#{{ projectName }}</span>
       </span>
@@ -50,23 +45,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
-import type { TimelineItemRecord } from '../../services/indexedDB';
-import { useFocusable } from '../../composables/useFocusable';
-import { useTaskOperations } from '../../composables/useTaskOperations';
+import { computed, ref, onMounted } from "vue";
+import { useTaskOperations } from "../../composables/useTaskOperations";
+import type { TimelineItem } from "~/models";
 
 // Props definition
 const props = defineProps<{
-  task: TimelineItemRecord;
+  task: TimelineItem;
   isSelected: boolean;
   isFocused: boolean;
   projectName: string;
+  setItemRef: (element: HTMLElement, index: number) => void;
 }>();
 
 // Emit events
 const emit = defineEmits<{
-  (e: 'toggle-selection', id?: number): void;
-  (e: 'key-press', event: KeyboardEvent, task: TimelineItemRecord): void;
+  (e: "toggle-selection", id: number): void;
+  (e: "key-press", event: KeyboardEvent, task: TimelineItem): void;
 }>();
 
 // Reference to the root element for focus management
@@ -75,16 +70,15 @@ const rootElement = ref<HTMLElement | null>(null);
 // Get the task operations composable
 const { getTaskIndex } = useTaskOperations();
 
-// Access the setTaskRef function directly from the useFocusable composable
-const { setTaskRef } = useFocusable(ref([]), ref(null));
-
 // Register this task item element with the focus system on mount
 onMounted(() => {
-  if (rootElement.value && props.task.type === 'task') {
+  if (rootElement.value && props.task.type === "task") {
     const taskIndex = getTaskIndex(props.task);
     if (taskIndex >= 0) {
-      console.log(`Registering task ${props.task.id} at index ${taskIndex} for focus management`);
-      setTaskRef(rootElement.value, taskIndex);
+      console.log(
+        `Registering task ${props.task.id} at index ${taskIndex} for focus management`
+      );
+      props.setItemRef(rootElement.value, taskIndex);
     }
   }
 });
@@ -94,8 +88,6 @@ const iconClass = computed(() => {
   switch (props.task.type) {
     case "task":
       return "ph-bold ph-check-circle";
-    case "spend":
-      return "ph-bold ph-currency-dollar";
     case "event":
       return "ph-bold ph-calendar";
     case "note":
@@ -131,7 +123,7 @@ const formattedTime = computed(() => {
 
 // Handle keydown event
 function onKeyDown(event: KeyboardEvent) {
-  emit('key-press', event, props.task);
+  emit("key-press", event, props.task);
 }
 </script>
 

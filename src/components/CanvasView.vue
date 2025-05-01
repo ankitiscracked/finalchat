@@ -514,7 +514,7 @@ function focusInput() {
 
 // Focus on chat input
 function focusChatInput() {
-  chatInputRef.focus();
+  chatInputRef.value!.focus();
 }
 
 // Focus canvas container

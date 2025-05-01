@@ -12,12 +12,14 @@
       ]"
     >
       <!-- Chat Timeline -->
-      <ChatTimeline :ref="(el) => setGlobalElementRef(el, 'chatTimeline')" />
+      <ChatTimeline
+        :ref="(el) => setGlobalElementRef(el as HTMLElement, 'chatTimeline')"
+      />
 
       <!-- Chat Input Area -->
       <ChatInput
         :is-db-ready="isDbReady"
-        :ref="(el) => setGlobalElementRef(el, 'chatInput')"
+        :ref="(el) => setGlobalElementRef(el as HTMLElement, 'chatInput')"
       />
     </div>
 
@@ -25,7 +27,7 @@
     <transition name="slide">
       <div v-if="showOverview" class="overview-container">
         <OverviewSection
-          :ref="(el) => setGlobalElementRef(el, 'overviewSection')"
+          :ref="(el) => setGlobalElementRef(el as HTMLElement, 'overviewSection')"
         />
       </div>
     </transition>
@@ -36,7 +38,9 @@
     </transition>
 
     <!-- Commands Drawer -->
-    <CommandsDrawer :ref="(el) => setGlobalElementRef(el, 'commandDrawer')" />
+    <CommandsDrawer
+      :ref="(el) => setGlobalElementRef(el as HTMLElement, 'commandDrawer')"
+    />
   </div>
 </template>
 
@@ -65,15 +69,6 @@ const { aiOverviewLoading, aiOverviewContent, generateAiOverview } =
 const { refreshTimeline } = useTimeline();
 const isDbReady = ref(false);
 
-// Function to handle overview mode changes from the component
-function handleOverviewModeChange(mode: "standard" | "ai"): void {
-  overviewMode.value = mode;
-
-  if (mode === "ai") {
-    generateAiOverview(overviewType.value, timelineItems.value);
-  }
-}
-
 useEventListeners();
 
 // Initialize app
@@ -88,10 +83,9 @@ onMounted(async () => {
       const { initialize: initNotes } = useNotes();
 
       // Create dummy refs for projects and collections (not used directly)
-      const dummyRef = ref(null);
       const dummyMessage = ref("");
-      const { loadProjectsData } = useProjects(dummyRef, dummyMessage);
-      const { loadCollectionsData } = useCollections(dummyRef, dummyMessage);
+      const { loadProjectsData } = useProjects(dummyMessage);
+      const { loadCollectionsData } = useCollections(dummyMessage);
 
       // Initialize entity data stores in parallel
       await Promise.all([
@@ -140,10 +134,6 @@ body {
     flex-direction: row;
     justify-content: space-between;
     align-items: flex-start;
-  }
-
-  &.with-canvas {
-    // No special styles needed as canvas is now part of the document flow
   }
 }
 

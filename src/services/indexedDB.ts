@@ -1,4 +1,4 @@
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 
 // Database configuration
 const DB_NAME = "TimelineAppDB";
@@ -6,10 +6,17 @@ const DB_VERSION = 4; // Incremented for new schema
 
 // Store names
 const TASKS_STORE = "tasks";
-const EVENTS_STORE = "events"; 
+const EVENTS_STORE = "events";
 const NOTES_STORE = "notes";
 const PROJECTS_STORE = "projects";
 const COLLECTIONS_STORE = "collections";
+
+type StoreName =
+  | typeof TASKS_STORE
+  | typeof EVENTS_STORE
+  | typeof NOTES_STORE
+  | typeof PROJECTS_STORE
+  | typeof COLLECTIONS_STORE;
 
 // Base interfaces
 export interface BaseRecord {
@@ -34,7 +41,7 @@ export interface EventRecord extends BaseRecord {
 }
 
 export interface NoteRecord extends BaseRecord {
-  type: "default" | "note";
+  type: "note";
   content: string;
   collectionId?: number;
 }
@@ -52,36 +59,36 @@ interface TimelineDB extends DBSchema {
   [TASKS_STORE]: {
     key: number;
     value: TaskRecord;
-    indexes: { 
-      'status': string;
-      'projectId': number;
+    indexes: {
+      status: string;
+      projectId: number;
     };
   };
   [EVENTS_STORE]: {
     key: number;
     value: EventRecord;
-    indexes: { 
-      'projectId': number;
-      'collectionId': number;
-      'eventDate': Date;
+    indexes: {
+      projectId: number;
+      collectionId: number;
+      eventDate: Date;
     };
   };
   [NOTES_STORE]: {
     key: number;
     value: NoteRecord;
-    indexes: { 
-      'collectionId': number;
+    indexes: {
+      collectionId: number;
     };
   };
   [PROJECTS_STORE]: {
     key: number;
     value: ProjectRecord;
-    indexes: { 'name': string };
+    indexes: { name: string };
   };
   [COLLECTIONS_STORE]: {
     key: number;
     value: CollectionRecord;
-    indexes: { 'name': string };
+    indexes: { name: string };
   };
 }
 
@@ -175,7 +182,7 @@ export function getDb(): Promise<IDBPDatabase<TimelineDB>> {
 
 // Add item to a store
 export async function addItem<T extends BaseRecord>(
-  storeName: string,
+  storeName: StoreName,
   item: Omit<T, "id"> & { createdAt?: Date }
 ): Promise<number> {
   const db = await getDb();
@@ -183,7 +190,7 @@ export async function addItem<T extends BaseRecord>(
     ...item,
     createdAt: item.createdAt || new Date(),
   } as T;
-  
+
   const id = await db.add(storeName, itemToAdd);
   console.log(`Item added to ${storeName}, ID:`, id);
   return id;
@@ -195,13 +202,18 @@ export async function getAllItems<T extends BaseRecord>(
 ): Promise<T[]> {
   const db = await getDb();
   const items = await db.getAll(storeName);
-  
+
   // Ensure dates are Date objects (needed because IndexedDB serializes dates)
-  return items.map((item) => ({
-    ...item,
-    createdAt: new Date(item.createdAt),
-    ...(item as any).eventDate && { eventDate: new Date((item as any).eventDate) },
-  } as T));
+  return items.map(
+    (item) =>
+      ({
+        ...item,
+        createdAt: new Date(item.createdAt),
+        ...((item as any).eventDate && {
+          eventDate: new Date((item as any).eventDate),
+        }),
+      } as T)
+  );
 }
 
 // Get item by ID
@@ -211,13 +223,15 @@ export async function getItemById<T extends BaseRecord>(
 ): Promise<T | null> {
   const db = await getDb();
   const item = await db.get(storeName, id);
-  
+
   if (!item) return null;
-  
+
   return {
     ...item,
     createdAt: new Date(item.createdAt),
-    ...(item as any).eventDate && { eventDate: new Date((item as any).eventDate) },
+    ...((item as any).eventDate && {
+      eventDate: new Date((item as any).eventDate),
+    }),
   } as T;
 }
 
@@ -251,13 +265,10 @@ export async function deleteItems(
   itemIds: number[]
 ): Promise<void> {
   const db = await getDb();
-  const tx = db.transaction(storeName, 'readwrite');
-  
-  await Promise.all([
-    ...itemIds.map(id => tx.store.delete(id)),
-    tx.done
-  ]);
-  
+  const tx = db.transaction(storeName, "readwrite");
+
+  await Promise.all([...itemIds.map((id) => tx.store.delete(id)), tx.done]);
+
   console.log(`${itemIds.length} items deleted from ${storeName}`);
 }
 
@@ -270,10 +281,15 @@ export async function getItemsByIndex<T extends BaseRecord>(
   const db = await getDb();
   const index = db.transaction(storeName).store.index(indexName);
   const items = await index.getAll(value);
-  
-  return items.map((item) => ({
-    ...item,
-    createdAt: new Date(item.createdAt),
-    ...(item as any).eventDate && { eventDate: new Date((item as any).eventDate) },
-  } as T));
+
+  return items.map(
+    (item) =>
+      ({
+        ...item,
+        createdAt: new Date(item.createdAt),
+        ...((item as any).eventDate && {
+          eventDate: new Date((item as any).eventDate),
+        }),
+      } as T)
+  );
 }

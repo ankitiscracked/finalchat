@@ -1,13 +1,13 @@
-import { ref, computed, watch, onMounted } from 'vue';
-import * as taskService from '../services/taskService';
-import type { TaskRecord } from '../services/indexedDB';
+import { ref, computed, watch, onMounted } from "vue";
+import * as taskService from "../services/taskService";
+import type { TaskRecord } from "../services/indexedDB";
 
 /**
  * Composable for working with tasks
  */
 export function useTasks() {
   // Reactive state
-  const tasks = ref<TaskRecord[]>([]);
+  const tasks = useState<TaskRecord[]>(() => []);
   const isLoading = ref(false);
   const isInitialized = ref(false);
 
@@ -16,13 +16,13 @@ export function useTasks() {
    */
   const initialize = async () => {
     if (isInitialized.value) return;
-    
+
     isLoading.value = true;
     try {
       tasks.value = await taskService.getAllTasks();
       isInitialized.value = true;
     } catch (error) {
-      console.error('Failed to initialize tasks:', error);
+      console.error("Failed to initialize tasks:", error);
     } finally {
       isLoading.value = false;
     }
@@ -34,15 +34,17 @@ export function useTasks() {
   /**
    * Get tasks filtered by status
    */
-  const getByStatus = (status: TaskRecord['status']) => {
-    return computed(() => tasks.value.filter(task => task.status === status));
+  const getByStatus = (status: TaskRecord["status"]) => {
+    return computed(() => tasks.value.filter((task) => task.status === status));
   };
 
   /**
    * Get tasks for a specific project
    */
   const getByProject = (projectId: number) => {
-    return computed(() => tasks.value.filter(task => task.projectId === projectId));
+    return computed(() =>
+      tasks.value.filter((task) => task.projectId === projectId)
+    );
   };
 
   /**
@@ -51,11 +53,11 @@ export function useTasks() {
   const createTask = async (content: string, projectId?: number) => {
     isLoading.value = true;
     try {
-      const newTask = await taskService.createTask(content, 'todo', projectId);
+      const newTask = await taskService.createTask(content, "todo", projectId);
       tasks.value = [newTask, ...tasks.value];
       return newTask;
     } catch (error) {
-      console.error('Failed to create task:', error);
+      console.error("Failed to create task:", error);
       throw error;
     } finally {
       isLoading.value = false;
@@ -65,11 +67,14 @@ export function useTasks() {
   /**
    * Update a task
    */
-  const updateTask = async (id: number, updates: Partial<Omit<TaskRecord, 'id' | 'type'>>) => {
+  const updateTask = async (
+    id: number,
+    updates: Partial<Omit<TaskRecord, "id" | "type">>
+  ) => {
     isLoading.value = true;
     try {
       const updatedTask = await taskService.updateTask(id, updates);
-      const index = tasks.value.findIndex(task => task.id === id);
+      const index = tasks.value.findIndex((task) => task.id === id);
       if (index !== -1) {
         const updatedTasks = [...tasks.value];
         updatedTasks[index] = updatedTask;
@@ -87,7 +92,7 @@ export function useTasks() {
   /**
    * Update task status
    */
-  const updateTaskStatus = async (id: number, status: TaskRecord['status']) => {
+  const updateTaskStatus = async (id: number, status: TaskRecord["status"]) => {
     return await updateTask(id, { status });
   };
 
@@ -98,7 +103,7 @@ export function useTasks() {
     isLoading.value = true;
     try {
       await taskService.deleteTask(id);
-      tasks.value = tasks.value.filter(task => task.id !== id);
+      tasks.value = tasks.value.filter((task) => task.id !== id);
     } catch (error) {
       console.error(`Failed to delete task ${id}:`, error);
       throw error;
@@ -114,9 +119,11 @@ export function useTasks() {
     isLoading.value = true;
     try {
       await taskService.deleteMultipleTasks(ids);
-      tasks.value = tasks.value.filter(task => !ids.includes(task.id as number));
+      tasks.value = tasks.value.filter(
+        (task) => !ids.includes(task.id as number)
+      );
     } catch (error) {
-      console.error('Failed to delete tasks:', error);
+      console.error("Failed to delete tasks:", error);
       throw error;
     } finally {
       isLoading.value = false;
@@ -131,16 +138,16 @@ export function useTasks() {
     try {
       tasks.value = await taskService.getAllTasks();
     } catch (error) {
-      console.error('Failed to refresh tasks:', error);
+      console.error("Failed to refresh tasks:", error);
     } finally {
       isLoading.value = false;
     }
   };
 
   return {
-    tasks: computed(() => tasks.value),
-    isLoading: computed(() => isLoading.value),
-    isInitialized: computed(() => isInitialized.value),
+    tasks,
+    isLoading,
+    isInitialized,
     getByStatus,
     getByProject,
     createTask,
@@ -149,6 +156,6 @@ export function useTasks() {
     deleteTask,
     deleteMultiple,
     refreshTasks,
-    initialize
+    initialize,
   };
 }

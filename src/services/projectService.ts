@@ -1,23 +1,29 @@
-import { addProject, getAllProjects, getProjectById, type ProjectRecord } from './indexedDB';
+import { addItem, getAllItems, getItemById, type ProjectRecord } from './indexedDB';
+
+// Store name constant
+const PROJECTS_STORE = "projects";
 
 /**
  * Load all projects from the database
  */
 export async function loadProjects(): Promise<ProjectRecord[]> {
-  const projects = await getAllProjects();
-  return projects;
+  return getAllItems<ProjectRecord>(PROJECTS_STORE);
 }
 
 /**
  * Create a new project
  */
 export async function createProject(name: string): Promise<ProjectRecord> {
+  if (!name || name.trim() === "") {
+    throw new Error("Project name cannot be empty");
+  }
+  
   const projectData = {
     name: name.trim(),
     createdAt: new Date()
   };
   
-  const projectId = await addProject(projectData);
+  const projectId = await addItem<ProjectRecord>(PROJECTS_STORE, projectData);
   
   return {
     ...projectData,
@@ -29,7 +35,7 @@ export async function createProject(name: string): Promise<ProjectRecord> {
  * Get a project by its ID
  */
 export async function getProject(id: number): Promise<ProjectRecord | null> {
-  return getProjectById(id);
+  return getItemById<ProjectRecord>(PROJECTS_STORE, id);
 }
 
 /**

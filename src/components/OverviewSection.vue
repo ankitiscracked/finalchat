@@ -24,8 +24,8 @@
 
     <!-- Standard overview mode -->
     <div v-if="overviewMode === 'standard'" class="overview-content">
-      <template v-if="groupedItems.length > 0">
-        <div v-for="([date, items], index) in groupedItems" :key="date">
+      <template v-if="serializedItems.length > 0">
+        <div v-for="[date, items] in Object.entries(groupedItems)" :key="date">
           <div class="date-separator">{{ date }}</div>
           <template v-for="(item, idx) in items" :key="item.id">
             <!-- Task items use popover -->
@@ -45,12 +45,13 @@
                 <template #trigger>
                   <TaskItem
                     :task="item"
-                    :is-selected="selectedItems.includes(item.id)"
+                    :is-selected="selectedItemIds.includes(item.id!)"
                     :is-focused="
                       navigationState.isActive &&
                       item.id === navigationState.currentItemId
                     "
-                    :project-name="getProjectName(item.projectId)"
+                    :project-name="getProjectName(item.projectId!)"
+                    :set-item-ref="setItemRef"
                     @toggle-selection="toggleSelection"
                     @key-press="
                       (event, task) => handleItemKeyPress(event, task, idx)
@@ -73,14 +74,14 @@
                   },
                 ]"
                 tabindex="0"
-                :ref="(el) => setItemRef(el, idx)"
+                :ref="(el) => setItemRef(el as HTMLElement, idx)"
                 @keydown="(event) => handleItemKeyPress(event, item, idx)"
               >
                 <div class="checkbox-wrapper">
                   <input
                     type="checkbox"
-                    :checked="selectedItems.includes(item.id)"
-                    @change="toggleSelection(item.id)"
+                    :checked="selectedItemIds.includes(item.id!)"
+                    @change="toggleSelection(item.id!)"
                   />
                 </div>
                 <span class="item-icon">
@@ -155,25 +156,25 @@
 </template>
 
 <script setup lang="ts">
+import type { TimelineItem } from "~/models";
+import { useNavigation } from "../composables/useNavigation";
+import { loadCollections as getAllCollections } from "../services/collectionService";
+import { loadProjects as getAllProjects } from "../services/projectService";
 import TaskItem from "./task/TaskItem.vue";
 import TaskPopover from "./task/TaskPopover.vue";
-import {
-  updateItem,
-  getAllProjects,
-  getAllCollections,
-} from "../services/indexedDB";
-import { useNavigation } from "../composables/useNavigation";
 
 // Define emits
 const emit = defineEmits(["close", "changeMode", "refresh"]);
 const { overviewType, overviewMode } = useCommands();
 const { aiOverviewLoading, aiOverviewContent: aiContent } = useAiOverview();
 const { refreshItems, getItemsByType } = useTimeline();
+const { navigationState, selectedItemIds, toggleSelection } =
+  useGlobalContext();
 
 // Group items by date
-const groupedItems = computed(() => {
+const groupedItems = computed<Record<string, TimelineItem[]>>(() => {
   const items = getItemsByType(overviewType.value);
-  const groups: Record<string, TimelineItemRecord[]> = {};
+  const groups: Record<string, TimelineItem[]> = {};
 
   items.value.forEach((item) => {
     const dateStr = formatDate(item.createdAt);
@@ -184,11 +185,13 @@ const groupedItems = computed(() => {
   });
 
   // Return as an array of [date, items] pairs, sorted chronologically (newest first)
-  return Object.entries(groups).sort((a, b) => {
-    const dateA = new Date(a[0]);
-    const dateB = new Date(b[0]);
-    return dateB.getTime() - dateA.getTime(); // Reverse order (newest first)
-  });
+  return Object.fromEntries(
+    Object.entries(groups).sort((a, b) => {
+      const dateA = new Date(a[0]);
+      const dateB = new Date(b[0]);
+      return dateB.getTime() - dateA.getTime(); // Reverse order (newest first)
+    })
+  );
 });
 
 // Get typed items based on overview type
@@ -197,22 +200,14 @@ const serializedItems = computed(() =>
 );
 
 // Use our new navigation composable
-const {
-  navigationState,
-  selectedItemIds: selectedItems,
-  setItemRef,
-  activateNavigation,
-  toggleSelection,
-  handleKeydown,
-  getItemIndex,
-  focusItemById,
-} = useNavigation(serializedItems, {
-  onAction: handleItemAction,
-});
+const { setItemRef, activateNavigation, getItemIndex, focusItemById } =
+  useNavigation(serializedItems, {
+    onAction: handleItemAction,
+  });
 
 // Handle item actions triggered by keyboard
 function handleItemAction(
-  item: TimelineItemRecord,
+  item: TimelineItem,
   actionKey: string,
   event: KeyboardEvent
 ) {
@@ -231,28 +226,6 @@ function handleItemAction(
   }
 }
 
-// Expose navigation method to the parent component
-defineExpose({
-  activateNavigation,
-});
-
-// Log when items change
-watch(
-  () => props.items,
-  () => {
-    nextTick(() => {
-      // Log item count
-      if (serializedItems.value.length > 0) {
-        console.log(
-          `${overviewType} items available after update:`,
-          serializedItems.value.length
-        );
-      }
-    });
-  },
-  { deep: true }
-);
-
 // Watch for type changes to ensure proper focus handling
 watch(
   () => overviewType,
@@ -262,6 +235,7 @@ watch(
     navigationState.value.currentIndex = -1;
     navigationState.value.currentItemId = null;
     console.log(`Overview type changed to ${newType}`);
+    activateNavigation();
   },
   { immediate: true }
 );
@@ -284,7 +258,7 @@ const handlePopoverOpenChange = (isOpen: boolean, taskId?: number) => {
 };
 
 // Save edited task
-const saveEditedTask = async (editedTask: TimelineItemRecord) => {
+const saveEditedTask = async (editedTask: TimelineItem) => {
   try {
     // await updateItem(editedTask);
     await refreshItems(overviewType.value);
@@ -298,7 +272,7 @@ const saveEditedTask = async (editedTask: TimelineItemRecord) => {
 // Handle key press on items
 function handleItemKeyPress(
   event: KeyboardEvent,
-  item: TimelineItemRecord,
+  item: TimelineItem,
   idx: number
 ) {
   // Update the current item in navigation state to match this item
@@ -310,26 +284,6 @@ function handleItemKeyPress(
       navigationState.value.isActive = true;
     }
   }
-
-  // Special handling for escape key to close popovers first
-  if (event.key === "Escape") {
-    // Close any open popovers first
-    if (showActionsPopover.value || activePopoverTaskId.value !== null) {
-      closeActionsPopover();
-      activePopoverTaskId.value = null;
-      event.preventDefault();
-      return;
-    }
-  }
-
-  // Process the key press with our navigation handler
-  if (handleKeydown(event)) {
-    // The key was handled by the navigation composable
-    return;
-  }
-
-  // If we got here, the key wasn't handled by the navigation composable
-  console.log(`Key ${event.key} not handled by navigation`);
 }
 
 // Helper function to format date

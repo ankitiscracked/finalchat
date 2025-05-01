@@ -35,7 +35,7 @@ export function useProjects(newMessage: any) {
     }
 
     const message = newMessage.value;
-    const cursorPos = textareaRef.selectionStart;
+    const cursorPos = textareaRef.value!.selectionStart;
 
     console.log("checkForProjectTag called:", {
       message,
