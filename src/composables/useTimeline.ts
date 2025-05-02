@@ -8,14 +8,6 @@ export function useTimeline() {
   const { events, refreshEvents } = useEvents();
   const { notes, refreshNotes } = useNotes();
 
-  watch(
-    notes,
-    (newNotes, oldNotes) => {
-      console.log("Notes changed:", { newNotes, oldNotes });
-    },
-    { deep: true }
-  );
-
   const allItemsGroupedByDate = computed(() => {
     const allItems = [...tasks.value, ...events.value, ...notes.value];
     const groupedItems: Record<string, TimelineItem[]> = {};
@@ -36,30 +28,6 @@ export function useTimeline() {
       (a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime()
     );
   });
-
-  watch(
-    allItemsGroupedByDate,
-    () => {
-      console.log("timeline updated");
-    },
-    { deep: true }
-  );
-
-  const getItemsByType = (type: string) => {
-    return computed(() => {
-      switch (type) {
-        case "tasks":
-          return tasks.value;
-        case "events":
-          return events.value;
-        case "notes":
-          return notes.value;
-        default:
-          console.error("Unknown type:", type);
-          return [];
-      }
-    });
-  };
 
   async function refreshTimeline() {
     await Promise.all([refreshTasks(), refreshEvents(), refreshNotes()]);
@@ -91,9 +59,11 @@ export function useTimeline() {
 
   return {
     allItemsGroupedByDate,
-    getItemsByType,
     refreshTimeline,
     refreshItems,
     isTimeLineEmpty,
+    tasks,
+    notes,
+    events,
   };
 }

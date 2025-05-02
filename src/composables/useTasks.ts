@@ -1,6 +1,6 @@
-import { ref, computed, watch, onMounted } from "vue";
-import * as taskService from "../services/taskService";
+import { computed, onMounted } from "vue";
 import type { TaskRecord } from "../services/indexedDB";
+import * as taskService from "../services/taskService";
 
 /**
  * Composable for working with tasks
@@ -8,8 +8,8 @@ import type { TaskRecord } from "../services/indexedDB";
 export function useTasks() {
   // Reactive state
   const tasks = useState<TaskRecord[]>(() => []);
-  const isLoading = ref(false);
-  const isInitialized = ref(false);
+  const isLoading = useState(() => false);
+  const isInitialized = useState(() => false);
 
   /**
    * Initialize tasks data

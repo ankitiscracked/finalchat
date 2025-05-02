@@ -59,9 +59,8 @@ const getProjectNameWrapper = (projectId: number): string | null => {
 
 watch(
   groupedTimeline,
-  (value) => {
+  () => {
     scrollChatTimelineToBotton();
-    console.log("Timeline updated", value);
   },
   { deep: true }
 );
@@ -124,6 +123,7 @@ $message-default-accent: $gray-700;
 
     &.message-default,
     &.message-note {
+      justify-content: end;
       margin-left: auto; // Right aligned
       .message-content {
         background-color: $message-default-bg;

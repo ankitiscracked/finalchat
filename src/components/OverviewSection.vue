@@ -17,7 +17,7 @@
           </button>
         </div>
       </div>
-      <button @click="$emit('close')" class="close-button">
+      <button @click="showOverview = false" class="close-button">
         <i class="ph-bold ph-x"></i>
       </button>
     </div>
@@ -45,17 +45,10 @@
                 <template #trigger>
                   <TaskItem
                     :task="item"
-                    :is-selected="selectedItemIds.includes(item.id!)"
-                    :is-focused="
-                      navigationState.isActive &&
-                      item.id === navigationState.currentItemId
-                    "
+                    :index="idx"
                     :project-name="getProjectName(item.projectId!)"
                     :set-item-ref="setItemRef"
-                    @toggle-selection="toggleSelection"
-                    @key-press="
-                      (event, task) => handleItemKeyPress(event, task, idx)
-                    "
+                    :handle-keydown="handleKeydown"
                   />
                 </template>
               </TaskPopover>
@@ -75,7 +68,7 @@
                 ]"
                 tabindex="0"
                 :ref="(el) => setItemRef(el as HTMLElement, idx)"
-                @keydown="(event) => handleItemKeyPress(event, item, idx)"
+                @keydown="handleKeydown"
               >
                 <div class="checkbox-wrapper">
                   <input
@@ -146,7 +139,7 @@
     </div>
 
     <!-- Debug info -->
-    <div v-if="overviewType === 'task'" class="debug-info">
+    <div class="debug-info">
       <p>Focus active: {{ navigationState.isActive }}</p>
       <p>Current index: {{ navigationState.currentIndex }}</p>
       <p>Current item ID: {{ navigationState.currentItemId }}</p>
@@ -165,18 +158,35 @@ import TaskPopover from "./task/TaskPopover.vue";
 
 // Define emits
 const emit = defineEmits(["close", "changeMode", "refresh"]);
-const { overviewType, overviewMode } = useCommands();
+const { overviewType, overviewMode, showOverview } = useCommands();
 const { aiOverviewLoading, aiOverviewContent: aiContent } = useAiOverview();
-const { refreshItems, getItemsByType } = useTimeline();
+const { tasks } = useTasks();
+const { events } = useEvents();
+const { notes } = useNotes();
+
 const { navigationState, selectedItemIds, toggleSelection } =
   useGlobalContext();
 
+const itemsByType = computed(() => {
+  switch (overviewType.value) {
+    case "task":
+      return tasks.value;
+    case "event":
+      return events.value;
+    case "note":
+      return notes.value;
+    default:
+      console.error("Unknown type:", overviewType.value);
+      return [];
+  }
+});
+
 // Group items by date
 const groupedItems = computed<Record<string, TimelineItem[]>>(() => {
-  const items = getItemsByType(overviewType.value);
+  const items = itemsByType.value;
   const groups: Record<string, TimelineItem[]> = {};
 
-  items.value.forEach((item) => {
+  items.forEach((item) => {
     const dateStr = formatDate(item.createdAt);
     if (!groups[dateStr]) {
       groups[dateStr] = [];
@@ -200,10 +210,15 @@ const serializedItems = computed(() =>
 );
 
 // Use our new navigation composable
-const { setItemRef, activateNavigation, getItemIndex, focusItemById } =
-  useNavigation(serializedItems, {
-    onAction: handleItemAction,
-  });
+const {
+  setItemRef,
+  activateNavigation,
+  getItemIndex,
+  focusItemById,
+  handleKeydown,
+} = useNavigation(serializedItems, {
+  onAction: handleItemAction,
+});
 
 // Handle item actions triggered by keyboard
 function handleItemAction(
@@ -228,7 +243,7 @@ function handleItemAction(
 
 // Watch for type changes to ensure proper focus handling
 watch(
-  () => overviewType,
+  overviewType,
   (newType) => {
     // Clear any previous focus state when type changes
     navigationState.value.isActive = false;

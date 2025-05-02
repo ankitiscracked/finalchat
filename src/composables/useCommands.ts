@@ -3,13 +3,14 @@ import { ref } from "vue";
 export function useCommands() {
   const { selectedItemIds } = useGlobalContext();
   // Define item types
-  const allItemTypes = ["task", "event", "note"] as const;
-  type ItemType = (typeof allItemTypes)[number];
+  const { createTask } = useTasks();
+  const { createEvent } = useEvents();
+  // Define item types for the command registry
 
   // State for overview and canvas
-  const showOverview = ref(false);
-  const overviewType = ref("task");
-  const overviewMode = ref<"standard" | "ai">("standard");
+  const showOverview = useState(() => false);
+  const overviewType = useState<ItemType>("overviewType", () => "task");
+  const overviewMode = useState<OverviewType>("overviewMode", () => "standard");
   const showCanvas = ref(false);
 
   // Define command categories
@@ -37,14 +38,14 @@ export function useCommands() {
       type: CommandType.ITEM_CREATION,
       pattern: /^\/task\s+(.+)$/,
       extractParams: (input) => ({ content: input.replace(/^\/task\s+/, "") }),
-      execute: ({ content }) => ({ type: "task", content }),
+      execute: async ({ content }) => await createTask(content),
     },
     {
       name: "event",
       type: CommandType.ITEM_CREATION,
       pattern: /^\/event\s+(.+)$/,
       extractParams: (input) => ({ content: input.replace(/^\/event\s+/, "") }),
-      execute: ({ content }) => ({ type: "event", content }),
+      execute: async ({ content }) => await createEvent(content),
     },
 
     // Item action commands
@@ -154,10 +155,7 @@ export function useCommands() {
     for (const command of commands) {
       if (command.pattern.test(trimmedMessage)) {
         const params = command.extractParams(trimmedMessage);
-        if (
-          command.type === CommandType.ITEM_CREATION ||
-          command.type === CommandType.ITEM_ACTION
-        ) {
+        if (command.type === CommandType.ITEM_ACTION) {
           command.execute(params, selectedItemIds.value);
         } else {
           command.execute(params);

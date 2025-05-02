@@ -5,17 +5,20 @@
       'overview-item',
       `item-${task.type}`,
       {
-        focused: task.type === 'task' && isFocused,
+        focused:
+          task.type === 'task' &&
+          navigationState.isActive &&
+          navigationState.currentItemId === task.id,
       },
     ]"
     :tabindex="task.type === 'task' ? 0 : -1"
-    @keydown="onKeyDown"
+    @keydown="props.handleKeydown"
   >
     <div class="checkbox-wrapper">
       <input
         type="checkbox"
-        :checked="isSelected"
-        @change="$emit('toggle-selection', task.id!)"
+        :checked="selectedItemIds.includes(task.id!)"
+        @change="toggleSelection(task.id!)"
       />
     </div>
     <span class="item-icon">
@@ -52,10 +55,10 @@ import type { TimelineItem } from "~/models";
 // Props definition
 const props = defineProps<{
   task: TimelineItem;
-  isSelected: boolean;
-  isFocused: boolean;
+  index: number;
   projectName: string;
   setItemRef: (element: HTMLElement, index: number) => void;
+  handleKeydown: (event: KeyboardEvent) => void;
 }>();
 
 // Emit events
@@ -64,22 +67,18 @@ const emit = defineEmits<{
   (e: "key-press", event: KeyboardEvent, task: TimelineItem): void;
 }>();
 
+const { selectedItemIds, toggleSelection, navigationState } =
+  useGlobalContext();
 // Reference to the root element for focus management
 const rootElement = ref<HTMLElement | null>(null);
 
-// Get the task operations composable
-const { getTaskIndex } = useTaskOperations();
-
 // Register this task item element with the focus system on mount
 onMounted(() => {
-  if (rootElement.value && props.task.type === "task") {
-    const taskIndex = getTaskIndex(props.task);
-    if (taskIndex >= 0) {
-      console.log(
-        `Registering task ${props.task.id} at index ${taskIndex} for focus management`
-      );
-      props.setItemRef(rootElement.value, taskIndex);
-    }
+  if (rootElement.value) {
+    console.log(
+      `Registering task ${props.task.id} at index ${props.index} for focus management`
+    );
+    props.setItemRef(rootElement.value, props.index);
   }
 });
 
@@ -120,11 +119,6 @@ const formattedTime = computed(() => {
     hour12: true,
   });
 });
-
-// Handle keydown event
-function onKeyDown(event: KeyboardEvent) {
-  emit("key-press", event, props.task);
-}
 </script>
 
 <style lang="scss" scoped>
