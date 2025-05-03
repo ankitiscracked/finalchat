@@ -11,14 +11,20 @@
         {{ task.content }}
       </div>
       <div class="task-meta">
-        <div class="task-status reka-badge" :class="[`status-${task.status || 'todo'}`]">
+        <div
+          class="task-status reka-badge"
+          :class="[`status-${task.status || 'todo'}`]"
+        >
           {{ formatStatus(task.status || "todo") }}
         </div>
-        
+
         <div v-if="task.projectId" class="task-project">
-          in <span class="project-tag reka-tag">#{{ getProjectName(task.projectId) }}</span>
+          in
+          <span class="project-tag reka-tag"
+            >#{{ getProjectName(task.projectId) }}</span
+          >
         </div>
-        
+
         <div class="task-date">
           Created: {{ formatDateTime(task.createdAt) }}
         </div>
@@ -28,8 +34,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { TimelineItemRecord } from '../../services/indexedDB';
+import { computed } from "vue";
+import type { TimelineItemRecord } from "../../services/indexedDB";
 
 const props = defineProps<{
   position: { top: number; left: number };
@@ -84,22 +90,20 @@ function getProjectName(projectId: number): string {
 // Close when Escape is pressed
 onMounted(() => {
   const handleKeyDown = (event: KeyboardEvent) => {
-    if (event.key === 'Escape') {
-      emit('close');
+    if (event.key === "Escape") {
+      emit("close");
     }
   };
-  
-  window.addEventListener('keydown', handleKeyDown);
-  
+
+  window.addEventListener("keydown", handleKeyDown);
+
   onBeforeUnmount(() => {
-    window.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener("keydown", handleKeyDown);
   });
 });
 </script>
 
 <style lang="scss" scoped>
-@import "../../styles/main.scss";
-
 // Colors
 $popover-bg: $white;
 $border-color: $gray-300;
@@ -129,7 +133,7 @@ $accent-color: $orange-500;
       font-weight: 600;
       color: $text-color;
     }
-    
+
     .close-button {
       background: none;
       border: none;
@@ -149,44 +153,44 @@ $accent-color: $orange-500;
 
   .popover-content {
     padding: 15px;
-    
+
     .task-content {
       font-size: 1rem;
       line-height: 1.5;
       margin-bottom: 15px;
       word-break: break-word;
     }
-    
+
     .task-meta {
       display: flex;
       flex-direction: column;
       gap: 8px;
       font-size: 0.85rem;
       color: $gray-600;
-      
+
       .task-status {
         display: inline-block;
         padding: 4px 8px;
         border-radius: 4px;
         font-weight: 500;
-        
+
         &.status-todo {
           background-color: rgba($gray-300, 0.6);
           color: $gray-700;
         }
-        
+
         &.status-in-progress {
           background-color: rgba($orange-200, 0.6);
           color: $orange-700;
         }
-        
+
         &.status-done {
           background-color: rgba($gray-100, 0.6);
           color: $gray-600;
           text-decoration: line-through;
         }
       }
-      
+
       .task-project {
         .project-tag {
           background-color: rgba($orange-200, 0.7);
@@ -196,7 +200,7 @@ $accent-color: $orange-500;
           font-weight: 500;
         }
       }
-      
+
       .task-date {
         color: $gray-500;
       }

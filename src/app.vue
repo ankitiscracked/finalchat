@@ -1,47 +1,49 @@
 <template>
-  <div
-    :class="[
-      'app-container',
-      { 'with-overview': showOverview, 'with-canvas': showCanvas },
-    ]"
-  >
+  <UApp>
     <div
       :class="[
-        'chat-container',
+        'app-container',
         { 'with-overview': showOverview, 'with-canvas': showCanvas },
       ]"
     >
-      <!-- Chat Timeline -->
-      <ChatTimeline
-        :ref="(el) => setGlobalElementRef(el as HTMLElement, 'chatTimeline')"
-      />
+      <div
+        :class="[
+          'chat-container',
+          { 'with-overview': showOverview, 'with-canvas': showCanvas },
+        ]"
+      >
+        <!-- Chat Timeline -->
+        <ChatTimeline
+          :ref="(el) => setGlobalElementRef(el as HTMLElement, 'chatTimeline')"
+        />
 
-      <!-- Chat Input Area -->
-      <ChatInput
-        :is-db-ready="isDbReady"
-        :ref="(el) => setGlobalElementRef(el as HTMLElement, 'chatInput')"
-      />
-    </div>
-
-    <!-- Overview section -->
-    <transition name="slide">
-      <div v-if="showOverview" class="overview-container">
-        <OverviewSection
-          :ref="(el) => setGlobalElementRef(el as HTMLElement, 'overviewSection')"
+        <!-- Chat Input Area -->
+        <ChatInput
+          :is-db-ready="isDbReady"
+          :ref="(el) => setGlobalElementRef(el as HTMLElement, 'chatInput')"
         />
       </div>
-    </transition>
 
-    <!-- Canvas section -->
-    <transition name="fade">
-      <CanvasView v-if="showCanvas" />
-    </transition>
+      <!-- Overview section -->
+      <transition name="slide">
+        <div v-if="showOverview" class="overview-container">
+          <OverviewSection
+            :ref="(el) => setGlobalElementRef(el as HTMLElement, 'overviewSection')"
+          />
+        </div>
+      </transition>
 
-    <!-- Commands Drawer -->
-    <CommandsDrawer
-      :ref="(el) => setGlobalElementRef(el as HTMLElement, 'commandDrawer')"
-    />
-  </div>
+      <!-- Canvas section -->
+      <transition name="fade">
+        <CanvasView v-if="showCanvas" />
+      </transition>
+
+      <!-- Commands Drawer -->
+      <CommandsDrawer
+        :ref="(el) => setGlobalElementRef(el as HTMLElement, 'commandDrawer')"
+      />
+    </div>
+  </UApp>
 </template>
 
 <script setup lang="ts">
@@ -109,9 +111,6 @@ onMounted(async () => {
 </script>
 
 <style lang="scss">
-@import "./styles/main.scss";
-
-// App theme colors
 $primary-bg: $gray-100;
 $container-bg: $white;
 $border-color: $gray-300;

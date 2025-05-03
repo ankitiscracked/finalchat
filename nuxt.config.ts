@@ -1,4 +1,5 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import tailwindcss from "@tailwindcss/vite";
 export default defineNuxtConfig({
   ssr: false,
   srcDir: "src/",
@@ -9,7 +10,7 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
 
   modules: [
-    "reka-ui/nuxt", // Add Reka UI Nuxt module
+    "@nuxt/ui", // Add Reka UI Nuxt module
   ],
 
   // // Disable auto-imports for now until we can fix the issues
@@ -21,5 +22,15 @@ export default defineNuxtConfig({
   // components: false,
 
   // Global CSS
-  css: ["~/styles/main.scss"],
+  css: ["~/styles/main.css"],
+  vite: {
+    plugins: [tailwindcss()],
+    css: {
+      preprocessorOptions: {
+        scss: {
+          additionalData: '@use "~/styles/_colors.scss" as *;',
+        },
+      },
+    },
+  },
 });

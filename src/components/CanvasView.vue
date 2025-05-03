@@ -550,8 +550,6 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
-@import "../styles/main.scss";
-
 $primary-bg: $gray-100;
 $container-bg: $white;
 $border-color: $gray-300;

@@ -93,7 +93,8 @@ export function useTasks() {
    * Update task status
    */
   const updateTaskStatus = async (id: number, status: TaskRecord["status"]) => {
-    return await updateTask(id, { status });
+    await updateTask(id, { status });
+    await refreshTasks();
   };
 
   /**

@@ -19,21 +19,32 @@
             ref="taskInputRef"
           ></textarea>
         </div>
-        
+
         <div class="form-group">
           <label for="taskStatus">Status</label>
-          <select id="taskStatus" v-model="editedTask.status" class="status-input reka-select">
+          <select
+            id="taskStatus"
+            v-model="editedTask.status"
+            class="status-input reka-select"
+          >
             <option value="todo">To Do</option>
             <option value="in-progress">In Progress</option>
             <option value="done">Done</option>
           </select>
         </div>
-        
+
         <div class="form-actions">
-          <button type="button" class="cancel-button reka-button" @click="$emit('close')">
+          <button
+            type="button"
+            class="cancel-button reka-button"
+            @click="$emit('close')"
+          >
             Cancel
           </button>
-          <button type="submit" class="save-button reka-button reka-button-primary">
+          <button
+            type="submit"
+            class="save-button reka-button reka-button-primary"
+          >
             Save Changes
           </button>
         </div>
@@ -43,8 +54,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
-import type { TimelineItemRecord } from '../../services/indexedDB';
+import { computed, ref, onMounted } from "vue";
+import type { TimelineItemRecord } from "../../services/indexedDB";
 
 const props = defineProps<{
   position: { top: number; left: number };
@@ -58,7 +69,7 @@ const emit = defineEmits<{
 
 // Create a copy of the task for editing
 const editedTask = ref<TimelineItemRecord>({
-  ...props.task
+  ...props.task,
 });
 
 // Reference to the input field for focus
@@ -78,8 +89,8 @@ const saveTask = () => {
   if (!editedTask.value.content.trim()) {
     return;
   }
-  
-  emit('save', editedTask.value);
+
+  emit("save", editedTask.value);
 };
 
 // Focus the input field when component is mounted
@@ -93,8 +104,6 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
-@import "../../styles/main.scss";
-
 // Colors
 $popover-bg: $white;
 $border-color: $gray-300;
@@ -126,7 +135,7 @@ $input-focus: $white;
       font-weight: 600;
       color: $text-color;
     }
-    
+
     .close-button {
       background: none;
       border: none;
@@ -146,10 +155,10 @@ $input-focus: $white;
 
   .popover-content {
     padding: 15px;
-    
+
     .form-group {
       margin-bottom: 15px;
-      
+
       label {
         display: block;
         margin-bottom: 5px;
@@ -157,8 +166,9 @@ $input-focus: $white;
         font-weight: 500;
         color: $gray-700;
       }
-      
-      .task-input, .status-input {
+
+      .task-input,
+      .status-input {
         width: 100%;
         padding: 10px;
         font-size: 0.95rem;
@@ -166,25 +176,25 @@ $input-focus: $white;
         border-radius: 4px;
         background-color: $input-bg;
         font-family: inherit;
-        
+
         &:focus {
           outline: none;
           border-color: $accent-color;
           background-color: $input-focus;
         }
       }
-      
+
       .task-input {
         resize: vertical;
         min-height: 80px;
       }
     }
-    
+
     .form-actions {
       display: flex;
       justify-content: flex-end;
       gap: 10px;
-      
+
       button {
         padding: 8px 16px;
         border: none;
@@ -193,20 +203,20 @@ $input-focus: $white;
         cursor: pointer;
         font-weight: 500;
         transition: background-color 0.2s;
-        
+
         &.cancel-button {
           background-color: $gray-200;
           color: $gray-700;
-          
+
           &:hover {
             background-color: $gray-300;
           }
         }
-        
+
         &.save-button {
           background-color: $accent-color;
           color: white;
-          
+
           &:hover {
             background-color: darken($accent-color, 5%);
           }

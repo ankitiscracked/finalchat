@@ -3,5 +3,6 @@
  */
 export interface BaseModel {
   id?: number;
+  type: ItemType;
   createdAt: Date;
 }

@@ -23,19 +23,3 @@ $orange-600: #fb8c00;
 $orange-700: #f57c00;
 $orange-800: #ef6c00;
 $orange-900: #e65100;
-
-// Import Inter font
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
-// Import Phosphor Icons
-@import url('https://unpkg.com/@phosphor-icons/web@2.0.3/src/bold/style.css');
-
-// Global styles
-body {
-  font-family: 'Inter', sans-serif;
-  background-color: #ECECEC;
-  color: $gray-900;
-  margin: 0;
-}
-
-// These styles can be imported in nuxt.config.ts

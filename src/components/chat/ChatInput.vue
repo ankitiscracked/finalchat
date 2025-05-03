@@ -176,8 +176,6 @@ const submitMessage = async () => {
 </script>
 
 <style lang="scss" scoped>
-@import "../../styles/main.scss";
-
 // App theme colors
 $border-color: $gray-300;
 $accent-color: $orange-500;

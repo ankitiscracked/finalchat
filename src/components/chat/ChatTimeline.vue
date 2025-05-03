@@ -75,8 +75,6 @@ async function scrollChatTimelineToBotton() {
 </script>
 
 <style lang="scss" scoped>
-@import "../../styles/main.scss";
-
 // Colors from main app
 $primary-bg: $gray-100;
 $border-color: $gray-300;

@@ -1,86 +1,134 @@
 <template>
-  <div
-    ref="rootElement"
-    :class="[
-      'overview-item',
-      `item-${task.type}`,
-      {
-        focused:
-          task.type === 'task' &&
-          navigationState.isActive &&
-          navigationState.currentItemId === task.id,
-      },
-    ]"
-    :tabindex="task.type === 'task' ? 0 : -1"
-    @keydown="props.handleKeydown"
+  <UPopover
+    v-model:open="isPopoverOpen"
+    @update:open="
+      (val) => {
+        isTaskStatusPopoverOpen = val;
+        isTaskEditPopoverOpen = val;
+      }
+    "
   >
-    <div class="checkbox-wrapper">
-      <input
-        type="checkbox"
-        :checked="selectedItemIds.includes(task.id!)"
-        @change="toggleSelection(task.id!)"
-      />
-    </div>
-    <span class="item-icon">
-      <i :class="iconClass"></i>
-    </span>
-    <div class="item-content">
-      {{ task.content }}
+    <div
+      :class="[
+        'overview-item',
+        `item-${task.type}`,
+        {
+          focused: props.focused,
+        },
+      ]"
+      :tabindex="0"
+      @keydown.prevent="onKeyDown"
+      :ref="(el) => props.setItemref(props.index, el)"
+    >
+      <div class="checkbox-wrapper">
+        <input type="checkbox" :checked="props.selected" />
+      </div>
+      <span class="item-icon">
+        <i :class="iconClass"></i>
+      </span>
+      <div class="item-content">
+        {{ task.content }}
 
-      <!-- Show status for tasks -->
-      <span
-        v-if="task.type === 'task'"
-        class="item-status"
-        :class="[`status-${task.status || 'todo'}`]"
+        <!-- Show status for tasks -->
+        <span
+          v-if="task.type === 'task'"
+          class="item-status"
+          :class="[`status-${task.status || 'todo'}`]"
+        >
+          {{ formatStatus(task.status || "todo") }}
+        </span>
+
+        <!-- Show project for tasks with projectId -->
+        <span
+          v-if="task.type === 'task' && task.projectId"
+          class="item-project"
+        >
+          in
+          <span class="project-tag">#{{ projectName }}</span>
+        </span>
+
+        <span class="item-timestamp">{{ formattedTime }}</span>
+      </div>
+    </div>
+
+    <template #content>
+      <div
+        v-if="isTaskStatusPopoverOpen"
+        class="flex flex-col gap-1 p-1 w-[8rem]"
       >
-        {{ formatStatus(task.status || "todo") }}
-      </span>
+        <template v-for="state in taskStates" :key="state">
+          <button
+            class="item-status border border-gray-100 outline-none focus:bg-gray-200 rounded-sm text-md"
+            :class="[`status-${state}`]"
+            @click="updateStatus(task.id, state)"
+          >
+            {{ formatStatus(state) }}
+          </button>
+        </template>
+      </div>
 
-      <!-- Show project for tasks with projectId -->
-      <span v-if="task.type === 'task' && task.projectId" class="item-project">
-        in
-        <span class="project-tag">#{{ projectName }}</span>
-      </span>
+      <div v-if="isTaskEditPopoverOpen" class="p-2">
+        <span class="text-sm font-semibold">Edit task content</span>
+        <textarea
+          v-model="task.content"
+          class="w-full h-24 p-2 border border-gray-300 rounded-md outline-none"
+          placeholder="Edit task content..."
+          @keydown.enter.prevent="updateContent(task.id, task.content)"
+          @keydown.esc.prevent="isTaskEditPopoverOpen = false"
+        ></textarea>
+      </div>
+    </template>
+  </UPopover>
 
-      <span class="item-timestamp">{{ formattedTime }}</span>
-    </div>
-  </div>
+  <!-- <TaskStatePopover :is-task-popover-open="isTaskPopoverOpen" /> -->
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from "vue";
-import { useTaskOperations } from "../../composables/useTaskOperations";
+import { computed, ref } from "vue";
 import type { TimelineItem } from "~/models";
 
 // Props definition
 const props = defineProps<{
   task: TimelineItem;
   index: number;
+  focused: boolean;
+  selected: boolean;
   projectName: string;
-  setItemRef: (element: HTMLElement, index: number) => void;
   handleKeydown: (event: KeyboardEvent) => void;
+  setItemref: (index: number, el: HTMLElement) => void;
 }>();
+const { updateTask, refreshTasks } = useTasks();
+const isTaskStatusPopoverOpen = ref(false);
+const isTaskEditPopoverOpen = ref(false);
+const taskStates = ["todo", "in-progress", "done"];
 
-// Emit events
-const emit = defineEmits<{
-  (e: "toggle-selection", id: number): void;
-  (e: "key-press", event: KeyboardEvent, task: TimelineItem): void;
-}>();
+const isPopoverOpen = computed(
+  () => isTaskEditPopoverOpen.value || isTaskStatusPopoverOpen.value
+);
 
-const { selectedItemIds, toggleSelection, navigationState } =
-  useGlobalContext();
-// Reference to the root element for focus management
-const rootElement = ref<HTMLElement | null>(null);
-
-// Register this task item element with the focus system on mount
-onMounted(() => {
-  if (rootElement.value) {
-    console.log(
-      `Registering task ${props.task.id} at index ${props.index} for focus management`
-    );
-    props.setItemRef(rootElement.value, props.index);
-  }
+watch(isPopoverOpen, (newVal) => {
+  console.log("Popover state changed:", newVal);
 });
+
+async function updateStatus(taskId: number, status: string) {
+  try {
+    await updateTask(taskId, { status: status });
+    await refreshTasks();
+  } catch (error) {
+    console.error("Error updating task status:", error);
+  }
+  isTaskStatusPopoverOpen.value = false;
+}
+
+async function updateContent(taskId: number, content: string) {
+  try {
+    await updateTask(taskId, { content: content });
+    await refreshTasks();
+  } catch (error) {
+    console.error("Error updating task content:", error);
+  }
+  isTaskEditPopoverOpen.value = false;
+}
 
 // Compute icon class based on task type
 const iconClass = computed(() => {
@@ -111,6 +159,7 @@ function formatStatus(status: string): string {
 }
 
 // Format time
+
 const formattedTime = computed(() => {
   if (!props.task.createdAt) return "";
   return props.task.createdAt.toLocaleTimeString(undefined, {
@@ -119,11 +168,19 @@ const formattedTime = computed(() => {
     hour12: true,
   });
 });
+
+function onKeyDown(event: KeyboardEvent) {
+  if (event.key === "s") {
+    isTaskStatusPopoverOpen.value = true;
+  } else if (event.key === "e") {
+    isTaskEditPopoverOpen.value = true;
+  } else {
+    props.handleKeydown(event);
+  }
+}
 </script>
 
 <style lang="scss" scoped>
-@import "../../styles/main.scss";
-
 // Overview colors
 $border-color: $gray-300;
 $text-color: $gray-900;

@@ -24,89 +24,10 @@
 
     <!-- Standard overview mode -->
     <div v-if="overviewMode === 'standard'" class="overview-content">
-      <template v-if="serializedItems.length > 0">
-        <div v-for="[date, items] in Object.entries(groupedItems)" :key="date">
-          <div class="date-separator">{{ date }}</div>
-          <template v-for="(item, idx) in items" :key="item.id">
-            <!-- Task items use popover -->
-            <template v-if="item.type === 'task'">
-              <TaskPopover
-                :is-open="item.id === activePopoverTaskId"
-                @update:is-open="
-                  (isOpen) => handlePopoverOpenChange(isOpen, item.id)
-                "
-                :task="item"
-                :projects="projects"
-                side="bottom"
-                align="start"
-                :side-offset="5"
-                @save="saveEditedTask"
-              >
-                <template #trigger>
-                  <TaskItem
-                    :task="item"
-                    :index="idx"
-                    :project-name="getProjectName(item.projectId!)"
-                    :set-item-ref="setItemRef"
-                    :handle-keydown="handleKeydown"
-                  />
-                </template>
-              </TaskPopover>
-            </template>
-
-            <!-- Other item types -->
-            <template v-else>
-              <div
-                :class="[
-                  'overview-item',
-                  `item-${item.type}`,
-                  {
-                    focused:
-                      navigationState.isActive &&
-                      item.id === navigationState.currentItemId,
-                  },
-                ]"
-                tabindex="0"
-                :ref="(el) => setItemRef(el as HTMLElement, idx)"
-                @keydown="handleKeydown"
-              >
-                <div class="checkbox-wrapper">
-                  <input
-                    type="checkbox"
-                    :checked="selectedItemIds.includes(item.id!)"
-                    @change="toggleSelection(item.id!)"
-                  />
-                </div>
-                <span class="item-icon">
-                  <i :class="getIconClass(item.type)"></i>
-                </span>
-                <div class="item-content">
-                  {{ item.content }}
-
-                  <!-- Show collection for notes and events with collectionId -->
-                  <span
-                    v-if="
-                      (item.type === 'event' || item.type === 'default') &&
-                      item.collectionId
-                    "
-                    class="item-collection"
-                  >
-                    in
-                    <span class="collection-tag"
-                      >@{{ getCollectionName(item.collectionId) }}</span
-                    >
-                  </span>
-
-                  <span class="item-timestamp">{{
-                    formatTime(item.createdAt)
-                  }}</span>
-                </div>
-              </div>
-            </template>
-          </template>
-        </div>
-      </template>
-      <p v-else class="empty-overview">No {{ overviewType }} items found.</p>
+      <ListItems
+        :items="groupedItems"
+        v-model:selected-item-ids="selectedItemIds"
+      />
     </div>
 
     <!-- AI overview mode -->
@@ -150,11 +71,6 @@
 
 <script setup lang="ts">
 import type { TimelineItem } from "~/models";
-import { useNavigation } from "../composables/useNavigation";
-import { loadCollections as getAllCollections } from "../services/collectionService";
-import { loadProjects as getAllProjects } from "../services/projectService";
-import TaskItem from "./task/TaskItem.vue";
-import TaskPopover from "./task/TaskPopover.vue";
 
 // Define emits
 const emit = defineEmits(["close", "changeMode", "refresh"]);
@@ -164,8 +80,7 @@ const { tasks } = useTasks();
 const { events } = useEvents();
 const { notes } = useNotes();
 
-const { navigationState, selectedItemIds, toggleSelection } =
-  useGlobalContext();
+const { navigationState, selectedItemIds } = useGlobalContext();
 
 const itemsByType = computed(() => {
   switch (overviewType.value) {
@@ -204,102 +119,8 @@ const groupedItems = computed<Record<string, TimelineItem[]>>(() => {
   );
 });
 
-// Get typed items based on overview type
-const serializedItems = computed(() =>
-  Object.keys(groupedItems.value).flatMap((key) => groupedItems.value[key])
-);
-
-// Use our new navigation composable
-const {
-  setItemRef,
-  activateNavigation,
-  getItemIndex,
-  focusItemById,
-  handleKeydown,
-} = useNavigation(serializedItems, {
-  onAction: handleItemAction,
-});
-
-// Handle item actions triggered by keyboard
-function handleItemAction(
-  item: TimelineItem,
-  actionKey: string,
-  event: KeyboardEvent
-) {
-  if (!item.id) return;
-
-  // Based on the key pressed, trigger different actions
-  switch (actionKey) {
-    case " ":
-    case "Spacebar":
-    case "e":
-      // Open item popover/editor
-      if (item.type === "task") {
-        activePopoverTaskId.value = item.id;
-      }
-      break;
-  }
-}
-
-// Watch for type changes to ensure proper focus handling
-watch(
-  overviewType,
-  (newType) => {
-    // Clear any previous focus state when type changes
-    navigationState.value.isActive = false;
-    navigationState.value.currentIndex = -1;
-    navigationState.value.currentItemId = null;
-    console.log(`Overview type changed to ${newType}`);
-    activateNavigation();
-  },
-  { immediate: true }
-);
-
 // Task popover state
 const activePopoverTaskId = ref<number | null>(null);
-
-// Handle popover open/close
-const handlePopoverOpenChange = (isOpen: boolean, taskId?: number) => {
-  if (isOpen && taskId) {
-    activePopoverTaskId.value = taskId;
-
-    // Update navigation state to match this task
-    if (taskId) {
-      focusItemById(taskId);
-    }
-  } else {
-    activePopoverTaskId.value = null;
-  }
-};
-
-// Save edited task
-const saveEditedTask = async (editedTask: TimelineItem) => {
-  try {
-    // await updateItem(editedTask);
-    await refreshItems(overviewType.value);
-    // Close popover
-    activePopoverTaskId.value = null;
-  } catch (error) {
-    console.error("Error updating task:", error);
-  }
-};
-
-// Handle key press on items
-function handleItemKeyPress(
-  event: KeyboardEvent,
-  item: TimelineItem,
-  idx: number
-) {
-  // Update the current item in navigation state to match this item
-  if (item.id) {
-    const itemIndex = getItemIndex(item);
-    if (itemIndex >= 0) {
-      navigationState.value.currentIndex = itemIndex;
-      navigationState.value.currentItemId = item.id;
-      navigationState.value.isActive = true;
-    }
-  }
-}
 
 // Helper function to format date
 function formatDate(date: Date | null): string {
@@ -311,85 +132,13 @@ function formatDate(date: Date | null): string {
   });
 }
 
-// Helper function to format time
-function formatTime(date: Date | null): string {
-  if (!date) return "";
-  return date.toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
-
-// Helper to format status
-function formatStatus(status: string): string {
-  switch (status) {
-    case "todo":
-      return "To Do";
-    case "in-progress":
-      return "In Progress";
-    case "done":
-      return "Done";
-    default:
-      return status;
-  }
-}
-
-// Helper to get icon class based on type
-function getIconClass(type: string): string {
-  switch (type) {
-    case "task":
-      return "ph-bold ph-check-circle";
-    case "spend":
-      return "ph-bold ph-currency-dollar";
-    case "event":
-      return "ph-bold ph-calendar";
-    case "note":
-      return "ph-bold ph-note-pencil";
-    default:
-      return "ph-bold ph-chat-text";
-  }
-}
-
 // Helper to capitalize first letter
 function capitalizeFirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
-
-// Projects and collections state
-const projects = ref<ProjectRecord[]>([]);
-const collections = ref<CollectionRecord[]>([]);
-
-// Load projects and collections from IndexedDB
-onMounted(async () => {
-  try {
-    const [projectsData, collectionsData] = await Promise.all([
-      getAllProjects(),
-      getAllCollections(),
-    ]);
-    projects.value = projectsData;
-    collections.value = collectionsData;
-  } catch (error) {
-    console.error("Error loading data:", error);
-  }
-});
-
-// Function to get project name by ID
-function getProjectName(projectId: number): string {
-  const project = projects.value.find((p) => p.id === projectId);
-  return project ? project.name : "Unknown Project";
-}
-
-// Function to get collection name by ID
-function getCollectionName(collectionId: number): string {
-  const collection = collections.value.find((c) => c.id === collectionId);
-  return collection ? collection.name : "Unknown Collection";
-}
 </script>
 
 <style lang="scss" scoped>
-@import "../styles/main.scss";
-
 // Overview colors
 $overview-bg: $white;
 $border-color: $gray-300;

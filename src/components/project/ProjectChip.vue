@@ -1,9 +1,9 @@
 <template>
   <span class="project-chip">
     in <span class="project-name">#{{ project.name }}</span>
-    <button 
-      v-if="removable" 
-      @click.stop="$emit('remove')" 
+    <button
+      v-if="removable"
+      @click.stop="$emit('remove')"
       class="remove-btn"
       aria-label="Remove project"
     >
@@ -14,7 +14,7 @@
 
 <script setup lang="ts">
 // With Nuxt auto-imports, we don't need explicit imports
-import type { ProjectRecord } from '../../services/indexedDB';
+import type { ProjectRecord } from "../../services/indexedDB";
 
 defineProps<{
   project: ProjectRecord;
@@ -22,13 +22,11 @@ defineProps<{
 }>();
 
 defineEmits<{
-  (e: 'remove'): void;
+  (e: "remove"): void;
 }>();
 </script>
 
 <style lang="scss" scoped>
-@import "../../../styles/main.scss";
-
 .project-chip {
   display: inline-flex;
   align-items: center;
@@ -39,13 +37,13 @@ defineEmits<{
   margin-left: 4px;
   font-size: 0.9em;
   color: $gray-700;
-  
+
   .project-name {
     color: $orange-700;
     font-weight: 500;
     margin: 0 2px;
   }
-  
+
   .remove-btn {
     background: none;
     border: none;
@@ -58,7 +56,7 @@ defineEmits<{
     color: $gray-600;
     cursor: pointer;
     border-radius: 50%;
-    
+
     &:hover {
       background-color: rgba($orange-200, 0.8);
       color: $gray-800;

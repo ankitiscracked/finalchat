@@ -3,52 +3,55 @@
     <PopoverTrigger :as-child="true">
       <slot name="trigger" />
     </PopoverTrigger>
-    
+
     <PopoverPortal>
-      <PopoverContent 
+      <PopoverContent
         class="task-popover-content"
         :side="side"
         :side-offset="sideOffset"
         :align="align"
       >
         <div class="popover-header">
-          <h3>{{ isEditing ? 'Edit Task' : 'Task Details' }}</h3>
+          <h3>{{ isEditing ? "Edit Task" : "Task Details" }}</h3>
           <PopoverClose class="close-button">
             <i class="ph-bold ph-x"></i>
           </PopoverClose>
         </div>
-        
+
         <div class="popover-body">
           <!-- View Mode -->
           <div v-if="!isEditing" class="view-mode">
             <div class="task-content">
               {{ task.content }}
             </div>
-            
+
             <div class="task-meta">
-              <div class="task-status" :class="[`status-${task.status || 'todo'}`]">
+              <div
+                class="task-status"
+                :class="[`status-${task.status || 'todo'}`]"
+              >
                 {{ formatStatus(task.status || "todo") }}
               </div>
-              
+
               <div v-if="task.projectId" class="task-project">
-                in <span class="project-tag">#{{ getProjectName(task.projectId) }}</span>
+                in
+                <span class="project-tag"
+                  >#{{ getProjectName(task.projectId) }}</span
+                >
               </div>
-              
+
               <div class="task-date">
                 Created: {{ formatDateTime(task.createdAt) }}
               </div>
             </div>
-            
+
             <div class="action-buttons">
-              <button 
-                class="edit-button"
-                @click="isEditing = true"
-              >
+              <button class="edit-button" @click="isEditing = true">
                 <i class="ph-bold ph-pencil"></i> Edit
               </button>
             </div>
           </div>
-          
+
           <!-- Edit Mode -->
           <div v-else class="edit-mode">
             <form @submit.prevent="saveTask">
@@ -62,35 +65,30 @@
                   ref="taskInputRef"
                 ></textarea>
               </div>
-              
+
               <div class="form-group">
                 <label for="taskStatus">Status</label>
-                <select id="taskStatus" v-model="editedTask.status" class="status-input">
+                <select
+                  id="taskStatus"
+                  v-model="editedTask.status"
+                  class="status-input"
+                >
                   <option value="todo">To Do</option>
                   <option value="in-progress">In Progress</option>
                   <option value="done">Done</option>
                 </select>
               </div>
-              
+
               <div class="form-actions">
-                <button 
-                  type="button" 
-                  class="cancel-button" 
-                  @click="cancelEdit"
-                >
+                <button type="button" class="cancel-button" @click="cancelEdit">
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
-                  class="save-button"
-                >
-                  Save Changes
-                </button>
+                <button type="submit" class="save-button">Save Changes</button>
               </div>
             </form>
           </div>
         </div>
-        
+
         <PopoverArrow />
       </PopoverContent>
     </PopoverPortal>
@@ -98,36 +96,36 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue';
-import type { TimelineItemRecord } from '../../services/indexedDB';
+import { computed, ref, onMounted, watch } from "vue";
+import type { TimelineItemRecord } from "../../services/indexedDB";
 import {
   PopoverRoot,
   PopoverTrigger,
   PopoverContent,
   PopoverPortal,
   PopoverClose,
-  PopoverArrow
-} from 'reka-ui';
+  PopoverArrow,
+} from "reka-ui";
 
 // Props
 const props = defineProps<{
   isOpen: boolean;
   task: TimelineItemRecord;
   projects: any[];
-  side?: 'top' | 'right' | 'bottom' | 'left';
-  align?: 'start' | 'center' | 'end';
+  side?: "top" | "right" | "bottom" | "left";
+  align?: "start" | "center" | "end";
   sideOffset?: number;
 }>();
 
 // Default values for props
-const side = props.side || 'bottom';
-const align = props.align || 'start';
+const side = props.side || "bottom";
+const align = props.align || "start";
 const sideOffset = props.sideOffset || 5;
 
 // Events
 const emit = defineEmits<{
-  (e: 'update:isOpen', value: boolean): void;
-  (e: 'save', task: TimelineItemRecord): void;
+  (e: "update:isOpen", value: boolean): void;
+  (e: "save", task: TimelineItemRecord): void;
 }>();
 
 // State
@@ -136,20 +134,26 @@ const taskInputRef = ref<HTMLTextAreaElement | null>(null);
 
 // Create a copy of the task for editing
 const editedTask = ref<TimelineItemRecord>({
-  ...props.task
+  ...props.task,
 });
 
 // Reset editedTask when the original task changes
-watch(() => props.task, (newTask) => {
-  editedTask.value = { ...newTask };
-});
+watch(
+  () => props.task,
+  (newTask) => {
+    editedTask.value = { ...newTask };
+  }
+);
 
 // Reset editing state when popover closes
-watch(() => props.isOpen, (isOpen) => {
-  if (!isOpen) {
-    isEditing.value = false;
+watch(
+  () => props.isOpen,
+  (isOpen) => {
+    if (!isOpen) {
+      isEditing.value = false;
+    }
   }
-});
+);
 
 // Format date and time
 function formatDateTime(date: Date | null): string {
@@ -189,8 +193,8 @@ function saveTask() {
   if (!editedTask.value.content.trim()) {
     return;
   }
-  
-  emit('save', editedTask.value);
+
+  emit("save", editedTask.value);
   isEditing.value = false;
 }
 
@@ -214,8 +218,6 @@ watch(isEditing, (editing) => {
 </script>
 
 <style lang="scss" scoped>
-@import "../../styles/main.scss";
-
 // Colors
 $popover-bg: $white;
 $border-color: $gray-300;
@@ -231,7 +233,7 @@ $input-focus: $white;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   z-index: 1000;
-  
+
   .popover-header {
     display: flex;
     justify-content: space-between;
@@ -246,7 +248,7 @@ $input-focus: $white;
       font-weight: 600;
       color: $text-color;
     }
-    
+
     .close-button {
       background: none;
       border: none;
@@ -263,10 +265,10 @@ $input-focus: $white;
       }
     }
   }
-  
+
   .popover-body {
     padding: 15px;
-    
+
     .view-mode {
       .task-content {
         font-size: 1rem;
@@ -274,7 +276,7 @@ $input-focus: $white;
         margin-bottom: 15px;
         word-break: break-word;
       }
-      
+
       .task-meta {
         display: flex;
         flex-direction: column;
@@ -282,30 +284,30 @@ $input-focus: $white;
         font-size: 0.85rem;
         color: $gray-600;
         margin-bottom: 15px;
-        
+
         .task-status {
           display: inline-block;
           padding: 4px 8px;
           border-radius: 4px;
           font-weight: 500;
-          
+
           &.status-todo {
             background-color: rgba($gray-300, 0.6);
             color: $gray-700;
           }
-          
+
           &.status-in-progress {
             background-color: rgba($orange-200, 0.6);
             color: $orange-700;
           }
-          
+
           &.status-done {
             background-color: rgba($gray-100, 0.6);
             color: $gray-600;
             text-decoration: line-through;
           }
         }
-        
+
         .task-project {
           .project-tag {
             background-color: rgba($orange-200, 0.7);
@@ -315,16 +317,16 @@ $input-focus: $white;
             font-weight: 500;
           }
         }
-        
+
         .task-date {
           color: $gray-500;
         }
       }
-      
+
       .action-buttons {
         display: flex;
         justify-content: flex-end;
-        
+
         .edit-button {
           background-color: $gray-200;
           color: $gray-700;
@@ -336,18 +338,18 @@ $input-focus: $white;
           display: flex;
           align-items: center;
           gap: 5px;
-          
+
           &:hover {
             background-color: $gray-300;
           }
         }
       }
     }
-    
+
     .edit-mode {
       .form-group {
         margin-bottom: 15px;
-        
+
         label {
           display: block;
           margin-bottom: 5px;
@@ -355,8 +357,9 @@ $input-focus: $white;
           font-weight: 500;
           color: $gray-700;
         }
-        
-        .task-input, .status-input {
+
+        .task-input,
+        .status-input {
           width: 100%;
           padding: 10px;
           font-size: 0.95rem;
@@ -364,25 +367,25 @@ $input-focus: $white;
           border-radius: 4px;
           background-color: $input-bg;
           font-family: inherit;
-          
+
           &:focus {
             outline: none;
             border-color: $accent-color;
             background-color: $input-focus;
           }
         }
-        
+
         .task-input {
           resize: vertical;
           min-height: 80px;
         }
       }
-      
+
       .form-actions {
         display: flex;
         justify-content: flex-end;
         gap: 10px;
-        
+
         button {
           padding: 8px 16px;
           border: none;
@@ -391,20 +394,20 @@ $input-focus: $white;
           cursor: pointer;
           font-weight: 500;
           transition: background-color 0.2s;
-          
+
           &.cancel-button {
             background-color: $gray-200;
             color: $gray-700;
-            
+
             &:hover {
               background-color: $gray-300;
             }
           }
-          
+
           &.save-button {
             background-color: $accent-color;
             color: white;
-            
+
             &:hover {
               background-color: darken($accent-color, 5%);
             }

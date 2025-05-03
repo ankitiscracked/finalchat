@@ -172,8 +172,6 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
-@import "../../styles/main.scss";
-
 // Colors
 $popover-bg: $white;
 $border-color: $gray-300;

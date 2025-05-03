@@ -182,8 +182,6 @@ async function createCollection() {
 </script>
 
 <style lang="scss" scoped>
-@import "../../styles/main.scss";
-
 $border-color: $gray-300;
 $popover-bg: $white;
 $active-bg: $gray-100;

@@ -4,15 +4,15 @@ export interface NavigationState {
   currentItemId: number | null;
 }
 
-const navigationState = ref<NavigationState>({
-  isActive: false,
-  currentIndex: -1,
-  currentItemId: null,
-});
-
-const selectedItemIds = ref<number[]>([]);
-
 export function useGlobalContext() {
+  const navigationState = useState<NavigationState>("naivgationState", () => ({
+    isActive: false,
+    currentIndex: -1,
+    currentItemId: null,
+  }));
+
+  const selectedItemIds = useState<number[]>("selectedItemIds", () => []);
+
   const toggleSelection = (itemId: number) => {
     const index = selectedItemIds.value.indexOf(itemId);
     if (index === -1) {
