@@ -1,3 +1,4 @@
 export const allItemTypes = ["task", "event", "note"] as const;
 export type ItemType = (typeof allItemTypes)[number];
-export type OverviewType = "standard" | "ai";
+export type OverviewMode = "standard" | "ai";
+export type OverviewType = "item-list" | "week-tasks";

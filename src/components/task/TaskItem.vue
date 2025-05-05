@@ -1,12 +1,8 @@
 <template>
-  <UPopover
-    v-model:open="isPopoverOpen"
-    @update:open="
-      (val) => {
-        isTaskStatusPopoverOpen = val;
-        isTaskEditPopoverOpen = val;
-      }
-    "
+  <TaskItemWithActions
+    :task="props.task"
+    v-model:is-task-edit-popover-open="isTaskEditPopoverOpen"
+    v-model:is-task-status-popover-open="isTaskStatusPopoverOpen"
   >
     <div
       :class="[
@@ -17,6 +13,12 @@
         },
       ]"
       :tabindex="0"
+      @click="
+        () => {
+          isTaskEditPopoverOpen = false;
+          isTaskStatusPopoverOpen = false;
+        }
+      "
       @keydown.prevent="onKeyDown"
       :ref="(el) => props.setItemref(props.index, el)"
     >
@@ -50,35 +52,7 @@
         <span class="item-timestamp">{{ formattedTime }}</span>
       </div>
     </div>
-
-    <template #content>
-      <div
-        v-if="isTaskStatusPopoverOpen"
-        class="flex flex-col gap-1 p-1 w-[8rem]"
-      >
-        <template v-for="state in taskStates" :key="state">
-          <button
-            class="item-status border border-gray-100 outline-none focus:bg-gray-200 rounded-sm text-md"
-            :class="[`status-${state}`]"
-            @click="updateStatus(task.id, state)"
-          >
-            {{ formatStatus(state) }}
-          </button>
-        </template>
-      </div>
-
-      <div v-if="isTaskEditPopoverOpen" class="p-2">
-        <span class="text-sm font-semibold">Edit task content</span>
-        <textarea
-          v-model="task.content"
-          class="w-full h-24 p-2 border border-gray-300 rounded-md outline-none"
-          placeholder="Edit task content..."
-          @keydown.enter.prevent="updateContent(task.id, task.content)"
-          @keydown.esc.prevent="isTaskEditPopoverOpen = false"
-        ></textarea>
-      </div>
-    </template>
-  </UPopover>
+  </TaskItemWithActions>
 
   <!-- <TaskStatePopover :is-task-popover-open="isTaskPopoverOpen" /> -->
 </template>
@@ -86,6 +60,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { TimelineItem } from "~/models";
+import TaskItemWithActions from "../TaskItemWithActions.vue";
 
 // Props definition
 const props = defineProps<{
@@ -97,10 +72,8 @@ const props = defineProps<{
   handleKeydown: (event: KeyboardEvent) => void;
   setItemref: (index: number, el: HTMLElement) => void;
 }>();
-const { updateTask, refreshTasks } = useTasks();
 const isTaskStatusPopoverOpen = ref(false);
 const isTaskEditPopoverOpen = ref(false);
-const taskStates = ["todo", "in-progress", "done"];
 
 const isPopoverOpen = computed(
   () => isTaskEditPopoverOpen.value || isTaskStatusPopoverOpen.value
@@ -109,26 +82,6 @@ const isPopoverOpen = computed(
 watch(isPopoverOpen, (newVal) => {
   console.log("Popover state changed:", newVal);
 });
-
-async function updateStatus(taskId: number, status: string) {
-  try {
-    await updateTask(taskId, { status: status });
-    await refreshTasks();
-  } catch (error) {
-    console.error("Error updating task status:", error);
-  }
-  isTaskStatusPopoverOpen.value = false;
-}
-
-async function updateContent(taskId: number, content: string) {
-  try {
-    await updateTask(taskId, { content: content });
-    await refreshTasks();
-  } catch (error) {
-    console.error("Error updating task content:", error);
-  }
-  isTaskEditPopoverOpen.value = false;
-}
 
 // Compute icon class based on task type
 const iconClass = computed(() => {

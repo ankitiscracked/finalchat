@@ -1,4 +1,9 @@
 import { ref } from "vue";
+import {
+  type ItemType,
+  type OverviewMode,
+  type OverviewType,
+} from "~/utils/constants";
 
 export function useCommands() {
   const { selectedItemIds } = useGlobalContext();
@@ -7,10 +12,18 @@ export function useCommands() {
   const { createEvent } = useEvents();
   // Define item types for the command registry
 
+  // Get week tasks functionality
+  const { showWeekTasks, focusDay, getDayIndexFromName, toggleWeekTasksView } =
+    useWeekTasks();
+
   // State for overview and canvas
   const showOverview = useState(() => false);
-  const overviewType = useState<ItemType>("overviewType", () => "task");
-  const overviewMode = useState<OverviewType>("overviewMode", () => "standard");
+  const overviewType = useState<OverviewType>(
+    "overviewType",
+    () => "item-list"
+  );
+  const itemTypeToShow = useState<ItemType>("itemTypeToShow", () => "task");
+  const overviewMode = useState<OverviewMode>("overviewMode", () => "standard");
   const showCanvas = ref(false);
 
   // Define command categories
@@ -19,6 +32,7 @@ export function useCommands() {
     ITEM_ACTION, // Commands that act on selected items (/delete, /move-to, /edit)
     SYSTEM_TOGGLE, // Commands that toggle UI state (/show, /close-overview, /canvas)
     SYSTEM_ACTION, // Commands that trigger system actions (/ai-overview)
+    WEEK_VIEW_ACTION, // Commands for week view (/week-tasks, /mon, /tue, etc.)
   }
 
   // Command definition interface
@@ -80,8 +94,9 @@ export function useCommands() {
       },
       execute: ({ itemType }) => {
         if (allItemTypes.includes(itemType)) {
-          overviewType.value = itemType;
           showOverview.value = true;
+          overviewType.value = "item-list";
+          itemTypeToShow.value = itemType;
           return {
             success: true,
             activateTaskFocus: itemType === "task",
@@ -135,6 +150,122 @@ export function useCommands() {
           overviewType.value = itemType;
           overviewMode.value = "ai";
           showOverview.value = true;
+          return { success: true };
+        }
+        return { success: false };
+      },
+    },
+
+    // Week view commands
+    {
+      name: "week-tasks",
+      type: CommandType.WEEK_VIEW_ACTION,
+      pattern: /^\/week-tasks\s*$/,
+      extractParams: () => ({}),
+      execute: () => {
+        // Hide other views first
+        showCanvas.value = false;
+        showOverview.value = true;
+        overviewType.value = "week-tasks";
+      },
+    },
+    {
+      name: "close-week-tasks",
+      type: CommandType.WEEK_VIEW_ACTION,
+      pattern: /^\/close-week-tasks\s*$/,
+      extractParams: () => ({}),
+      execute: () => {
+        toggleWeekTasksView(false);
+        return { success: true };
+      },
+    },
+    // Day-specific commands
+    {
+      name: "mon",
+      type: CommandType.WEEK_VIEW_ACTION,
+      pattern: /^\/mon\s*$/,
+      extractParams: () => ({}),
+      execute: () => {
+        if (showWeekTasks.value) {
+          focusDay(0); // Monday is index 0
+          return { success: true };
+        }
+        return { success: false };
+      },
+    },
+    {
+      name: "tue",
+      type: CommandType.WEEK_VIEW_ACTION,
+      pattern: /^\/tue\s*$/,
+      extractParams: () => ({}),
+      execute: () => {
+        if (showWeekTasks.value) {
+          focusDay(1); // Tuesday is index 1
+          return { success: true };
+        }
+        return { success: false };
+      },
+    },
+    {
+      name: "wed",
+      type: CommandType.WEEK_VIEW_ACTION,
+      pattern: /^\/wed\s*$/,
+      extractParams: () => ({}),
+      execute: () => {
+        if (showWeekTasks.value) {
+          focusDay(2); // Wednesday is index 2
+          return { success: true };
+        }
+        return { success: false };
+      },
+    },
+    {
+      name: "thu",
+      type: CommandType.WEEK_VIEW_ACTION,
+      pattern: /^\/thu\s*$/,
+      extractParams: () => ({}),
+      execute: () => {
+        if (showWeekTasks.value) {
+          focusDay(3); // Thursday is index 3
+          return { success: true };
+        }
+        return { success: false };
+      },
+    },
+    {
+      name: "fri",
+      type: CommandType.WEEK_VIEW_ACTION,
+      pattern: /^\/fri\s*$/,
+      extractParams: () => ({}),
+      execute: () => {
+        if (showWeekTasks.value) {
+          focusDay(4); // Friday is index 4
+          return { success: true };
+        }
+        return { success: false };
+      },
+    },
+    {
+      name: "sat",
+      type: CommandType.WEEK_VIEW_ACTION,
+      pattern: /^\/sat\s*$/,
+      extractParams: () => ({}),
+      execute: () => {
+        if (showWeekTasks.value) {
+          focusDay(5); // Saturday is index 5
+          return { success: true };
+        }
+        return { success: false };
+      },
+    },
+    {
+      name: "sun",
+      type: CommandType.WEEK_VIEW_ACTION,
+      pattern: /^\/sun\s*$/,
+      extractParams: () => ({}),
+      execute: () => {
+        if (showWeekTasks.value) {
+          focusDay(6); // Sunday is index 6
           return { success: true };
         }
         return { success: false };
@@ -219,6 +350,41 @@ export function useCommands() {
     return { success: false };
   }
 
+  // Handle /week-tasks command
+  function handleWeekTasksCommand(message: string): { success: boolean } {
+    const command = commands.find((cmd) => cmd.name === "week-tasks");
+    if (command && command.pattern.test(message.trim())) {
+      return command.execute({});
+    }
+    return { success: false };
+  }
+
+  // Handle /close-week-tasks command
+  function handleCloseWeekTasksCommand(message: string): { success: boolean } {
+    const command = commands.find((cmd) => cmd.name === "close-week-tasks");
+    if (command && command.pattern.test(message.trim())) {
+      return command.execute({});
+    }
+    return { success: false };
+  }
+
+  // Handle day-specific commands (/mon, /tue, etc.)
+  function handleDayCommand(message: string): { success: boolean } {
+    const dayCommands = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+    const trimmedMessage = message.trim().toLowerCase();
+
+    for (const day of dayCommands) {
+      if (trimmedMessage === `/${day}`) {
+        const command = commands.find((cmd) => cmd.name === day);
+        if (command) {
+          return command.execute({});
+        }
+      }
+    }
+
+    return { success: false };
+  }
+
   // Check if suggestions should be shown
   function shouldShowSuggestions(
     message: string,
@@ -246,13 +412,18 @@ export function useCommands() {
     showOverview,
     overviewType,
     overviewMode,
+    itemTypeToShow,
     showCanvas,
+    showWeekTasks,
     executeCommand,
     handleShowCommand,
     handleCloseOverviewCommand,
     handleAiOverviewCommand,
     handleCanvasCommand,
     handleCloseCanvasCommand,
+    handleWeekTasksCommand,
+    handleCloseWeekTasksCommand,
+    handleDayCommand,
     shouldShowSuggestions,
     handleTabKey,
     messageIsCommand,

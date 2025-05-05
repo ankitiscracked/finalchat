@@ -74,7 +74,8 @@ import type { TimelineItem } from "~/models";
 
 // Define emits
 const emit = defineEmits(["close", "changeMode", "refresh"]);
-const { overviewType, overviewMode, showOverview } = useCommands();
+const { overviewType, overviewMode, showOverview, itemTypeToShow } =
+  useCommands();
 const { aiOverviewLoading, aiOverviewContent: aiContent } = useAiOverview();
 const { tasks } = useTasks();
 const { events } = useEvents();
@@ -83,7 +84,7 @@ const { notes } = useNotes();
 const { navigationState, selectedItemIds } = useGlobalContext();
 
 const itemsByType = computed(() => {
-  switch (overviewType.value) {
+  switch (itemTypeToShow.value) {
     case "task":
       return tasks.value;
     case "event":

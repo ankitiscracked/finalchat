@@ -8,7 +8,7 @@
     >
       <div
         :class="[
-          'chat-container',
+          'chat-container mx-4',
           { 'with-overview': showOverview, 'with-canvas': showCanvas },
         ]"
       >
@@ -29,7 +29,10 @@
         <div v-if="showOverview" class="overview-container">
           <OverviewSection
             :ref="(el) => setGlobalElementRef(el as HTMLElement, 'overviewSection')"
+            v-if="overviewType === 'item-list'"
           />
+
+          <WeekTasksView v-else-if="overviewType === 'week-tasks'" />
         </div>
       </transition>
 
@@ -47,17 +50,6 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import CommandsDrawer from "./components/CommandsDrawer.vue";
-import { useAiOverview } from "./composables/useAiOverview";
-import { useCollections } from "./composables/useCollections";
-import { useCommands } from "./composables/useCommands";
-import { useEvents } from "./composables/useEvents";
-import { useGlobalElementAffordances } from "./composables/useGlobalElementAffordances";
-import { useNotes } from "./composables/useNotes";
-import { useProjects } from "./composables/useProjects";
-import { useTasks } from "./composables/useTasks";
-
 const { chatInputRef, setGlobalElementRef, scrollChatTimelineToBotton } =
   useGlobalElementAffordances();
 

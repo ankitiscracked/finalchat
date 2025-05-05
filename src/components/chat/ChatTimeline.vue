@@ -1,5 +1,9 @@
 <template>
-  <div class="chat-timeline" id="chat-timeline" ref="chatTimelineRef">
+  <div
+    class="chat-timeline border rounded-sm border-gray-200"
+    id="chat-timeline"
+    ref="chatTimelineRef"
+  >
     <!-- Iterate over grouped timeline items -->
     <template v-if="groupedTimeline.length > 0">
       <div v-for="([date, items], index) in groupedTimeline" :key="date">
@@ -95,9 +99,6 @@ $message-default-accent: $gray-700;
   flex-grow: 1;
   overflow-y: auto; // Allow scrolling for timeline content
   padding: 20px;
-  border-bottom: 1px solid $border-color;
-  background-color: $primary-bg;
-  border-radius: 4px;
 
   .date-separator {
     text-align: center;

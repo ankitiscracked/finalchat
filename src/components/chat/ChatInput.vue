@@ -74,6 +74,9 @@ const {
   handleAiOverviewCommand,
   handleCanvasCommand,
   handleCloseCanvasCommand,
+  handleWeekTasksCommand,
+  handleCloseWeekTasksCommand,
+  handleDayCommand,
 } = useCommands();
 // Get task operations from composable
 const { deleteSelectedTasks, editTask, moveTasks } = useTaskOperations();
