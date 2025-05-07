@@ -2,7 +2,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 
 // Database configuration
 const DB_NAME = "TimelineAppDB";
-const DB_VERSION = 4; // Incremented for new schema
+const DB_VERSION = 5; // Incremented for new schema
 
 // Store names
 const TASKS_STORE = "tasks";
@@ -30,6 +30,7 @@ export interface TaskRecord extends BaseRecord {
   content: string;
   status: "todo" | "in-progress" | "done";
   projectId?: number;
+  scheduledDate?: Date;
 }
 
 export interface EventRecord extends BaseRecord {

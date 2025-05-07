@@ -8,6 +8,7 @@ const commandsDrawerRef = ref<HTMLElement | null>(null);
 const showCanvas = ref(false);
 
 export function useGlobalElementAffordances() {
+  const showCommandsDrawer = useState("showCommandsDrawer", () => false);
   function setGlobalElementRef(
     el: HTMLElement | null,
     type:
@@ -64,5 +65,6 @@ export function useGlobalElementAffordances() {
     clearGlobalRefs,
     toggleShowCanvas,
     scrollChatTimelineToBotton,
+    showCommandsDrawer,
   };
 }

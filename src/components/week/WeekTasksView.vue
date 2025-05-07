@@ -44,14 +44,9 @@ const formatWeekRange = computed(() => {
 
 // Get tasks for a specific date
 function tasksForDate(date: Date) {
-  return tasks.value.filter((task) => {
-    const taskDate = new Date(task.createdAt);
-    return (
-      taskDate.getDate() === date.getDate() &&
-      taskDate.getMonth() === date.getMonth() &&
-      taskDate.getFullYear() === date.getFullYear()
-    );
-  });
+  return tasks.value.filter((task) =>
+    dayjs(task.scheduledDate).isSame(date, "day")
+  );
 }
 
 // Focus logic

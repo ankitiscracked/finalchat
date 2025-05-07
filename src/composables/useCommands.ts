@@ -7,6 +7,7 @@ import {
 
 export function useCommands() {
   const { selectedItemIds } = useGlobalContext();
+  const { showCommandsDrawer } = useGlobalElementAffordances();
   // Define item types
   const { createTask } = useTasks();
   const { createEvent } = useEvents();
@@ -269,6 +270,15 @@ export function useCommands() {
           return { success: true };
         }
         return { success: false };
+      },
+    },
+    {
+      name: "help",
+      type: CommandType.SYSTEM_TOGGLE,
+      pattern: /^\/help\s*$/,
+      extractParams: () => ({}),
+      execute: () => {
+        showCommandsDrawer.value = true;
       },
     },
   ];

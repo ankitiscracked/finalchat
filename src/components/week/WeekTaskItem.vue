@@ -3,6 +3,7 @@
     :task="props.task"
     v-model:is-task-edit-popover-open="isTaskEditPopoverOpen"
     v-model:is-task-status-popover-open="isTaskStatusPopoverOpen"
+    v-model:is-move-task-popover-open="isMoveTaskPopoverOpen"
   >
     <div
       :tabindex="0"
@@ -13,9 +14,10 @@
           isTaskEditPopoverOpen = false;
           isTaskStatusPopoverOpen = false;
           isDeleteModalOpen = false;
+          isDeleteModalOpen = false;
         }
       "
-      @keydown.stop.prevent="onKeyDown"
+      @keydown.prevent="onKeyDown"
     >
       <div class="task-time">{{ formattedTime }}</div>
       <div class="task-content">{{ task.content }}</div>
@@ -26,32 +28,10 @@
     </div>
   </TaskItemWithActions>
 
-  <UModal v-model:open="isDeleteModalOpen">
-    <template #content>
-      <div class="p-4 rounded-sm">
-        <span>Should we delete this task?</span>
-        <div class="flex justify-end gap-4">
-          <button
-            class="px-2 py-1 outline-gray-400 outline-offset-2 rounded-sm"
-            @click.prevent="isDeleteModalOpen = false"
-          >
-            Close
-          </button>
-          <button
-            @click="
-              () => {
-                deleteTask(props.task.id!);
-                isDeleteModalOpen = false;
-              }
-            "
-            class="bg-gray-800 px-2 py-1 text-white rounded-sm outline-offset-2 outline-gray-400"
-          >
-            Delete
-          </button>
-        </div>
-      </div>
-    </template>
-  </UModal>
+  <DeleteTaskModel
+    v-model:is-delete-modal-open="isDeleteModalOpen"
+    :task="props.task"
+  />
 </template>
 
 <script setup lang="ts">
@@ -73,6 +53,7 @@ const { deleteTask } = useTasks();
 const isTaskStatusPopoverOpen = ref(false);
 const isTaskEditPopoverOpen = ref(false);
 const isDeleteModalOpen = ref(false);
+const isMoveTaskPopoverOpen = ref(false);
 
 const weeekday = computed(() => {
   return dayjs(props.task.createdAt).format("dddd").toLowerCase();
@@ -105,6 +86,8 @@ function onKeyDown(e: KeyboardEvent) {
   } else if (e.key === "d") {
     console.log("Delete task");
     isDeleteModalOpen.value = true;
+  } else if (e.key === "m") {
+    isMoveTaskPopoverOpen.value = true;
   }
 }
 

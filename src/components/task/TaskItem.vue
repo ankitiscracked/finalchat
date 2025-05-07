@@ -3,6 +3,7 @@
     :task="props.task"
     v-model:is-task-edit-popover-open="isTaskEditPopoverOpen"
     v-model:is-task-status-popover-open="isTaskStatusPopoverOpen"
+    v-bind:is-move-task-popover-open="isMoveTaskPopoverOpen"
   >
     <div
       :class="[
@@ -17,6 +18,7 @@
         () => {
           isTaskEditPopoverOpen = false;
           isTaskStatusPopoverOpen = false;
+          isMoveTaskPopoverOpen = false;
         }
       "
       @keydown.prevent="onKeyDown"
@@ -54,7 +56,10 @@
     </div>
   </TaskItemWithActions>
 
-  <!-- <TaskStatePopover :is-task-popover-open="isTaskPopoverOpen" /> -->
+  <DeleteTaskModel
+    v-model:is-delete-modal-open="isDeleteModalOpen"
+    :task="props.task"
+  />
 </template>
 
 <script setup lang="ts">
@@ -74,14 +79,8 @@ const props = defineProps<{
 }>();
 const isTaskStatusPopoverOpen = ref(false);
 const isTaskEditPopoverOpen = ref(false);
-
-const isPopoverOpen = computed(
-  () => isTaskEditPopoverOpen.value || isTaskStatusPopoverOpen.value
-);
-
-watch(isPopoverOpen, (newVal) => {
-  console.log("Popover state changed:", newVal);
-});
+const isMoveTaskPopoverOpen = ref(false);
+const isDeleteModalOpen = ref(false);
 
 // Compute icon class based on task type
 const iconClass = computed(() => {
@@ -127,6 +126,10 @@ function onKeyDown(event: KeyboardEvent) {
     isTaskStatusPopoverOpen.value = true;
   } else if (event.key === "e") {
     isTaskEditPopoverOpen.value = true;
+  } else if (event.key === "d") {
+    isDeleteModalOpen.value = true;
+  } else if (event.key === "m") {
+    isMoveTaskPopoverOpen.value = true;
   } else {
     props.handleKeydown(event);
   }

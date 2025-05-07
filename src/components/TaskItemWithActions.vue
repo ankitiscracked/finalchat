@@ -5,12 +5,14 @@
       (val) => {
         isTaskStatusPopoverOpen = val;
         isTaskEditPopoverOpen = val;
+        isMoveTaskPopoverOpen = val;
       }
     "
   >
     <slot></slot>
 
     <template #content>
+      <!-- popover to change the status of the focused task -->
       <div
         v-if="isTaskStatusPopoverOpen"
         class="flex flex-col gap-1 p-1 w-[8rem]"
@@ -26,6 +28,7 @@
         </template>
       </div>
 
+      <!-- popover to edit the focused task -->
       <div v-if="isTaskEditPopoverOpen" class="p-2">
         <span class="text-sm font-semibold">Edit task content</span>
         <textarea
@@ -36,6 +39,17 @@
           @keydown.esc.prevent="isTaskEditPopoverOpen = false"
         ></textarea>
       </div>
+
+      <div v-if="isMoveTaskPopoverOpen">
+        <UCommandPalette
+          v-model="label"
+          placeholder="Move task to..."
+          :groups="[{ id: 'labels', items: rescheduleOptions }]"
+          @update:model-value="moveTaskTo"
+        />
+      </div>
+
+      <!-- popover to re-schedule a task to a different date-->
     </template>
   </UPopover>
 </template>
@@ -55,9 +69,25 @@ const isTaskStatusPopoverOpen = defineModel<boolean>(
   "isTaskStatusPopoverOpen",
   { default: false }
 );
+const isMoveTaskPopoverOpen = defineModel<boolean>("isMoveTaskPopoverOpen", {
+  default: false,
+});
+
+const rescheduleOptions = ref([
+  { label: "Today", value: "today" },
+  { label: "Tomorrow", value: "tomorrow" },
+  { label: "Next Week", value: "next-week" },
+  { label: "Same day next week", value: "same-day-next-week" },
+  { label: "Next month", value: "same-day-next-week" },
+  { label: "Same day next month", value: "same-day-next-week" },
+]);
+const label = ref({});
 
 const isPopoverOpen = computed(
-  () => isTaskEditPopoverOpen.value || isTaskStatusPopoverOpen.value
+  () =>
+    isTaskEditPopoverOpen.value ||
+    isTaskStatusPopoverOpen.value ||
+    isMoveTaskPopoverOpen.value
 );
 const { updateTask, refreshTasks } = useTasks();
 
@@ -92,5 +122,23 @@ function formatStatus(status: string): string {
     default:
       return status;
   }
+}
+
+function moveTaskTo(selectedItem: any) {
+  const { label, value } = selectedItem;
+  if (value === "today") {
+    // Logic to move task to today
+  } else if (value === "tomorrow") {
+    // Logic to move task to tomorrow
+  } else if (value === "next-week") {
+    // Logic to move task to next week
+  } else if (value === "same-day-next-week") {
+    // Logic to move task to the same day next week
+  } else if (value === "next-month") {
+    // Logic to move task to next month
+  } else if (value === "same-day-next-month") {
+    // Logic to move task to the same day next month
+  }
+  isMoveTaskPopoverOpen.value = false;
 }
 </script>

@@ -1,70 +1,37 @@
 <template>
-  <ClientOnly>
-    <DrawerRoot
-      :open="isOpen"
-      @openChange="(open: boolean) => (isOpen = open)"
-      direction="bottom"
-      class="commands-drawer"
-    >
-      <DrawerTrigger class="sr-only"> Open Commands </DrawerTrigger>
-      <DrawerPortal>
-        <DrawerOverlay class="drawer-overlay" />
-        <DrawerContent class="drawer-content">
-          <div class="drawer-inner">
-            <DrawerTitle class="drawer-title">Available Commands</DrawerTitle>
-            <DrawerDescription class="drawer-description">Press Escape to close</DrawerDescription>
-            <div class="commands-grid">
+  <UDrawer v-model:open="showCommandsDrawer" direction="bottom" :handle="false">
+    <template #content>
+      <div class="p-4">
+        <h3 class="text-md font-semibold">Available Commands</h3>
+        <div class="columns-3 mt-2">
+          <div v-for="(commandGroup, index) in commandColumns" :key="index">
+            <div class="flex flex-col gap-4 max-h-max">
               <div
-                class="commands-column"
-                v-for="(commandGroup, index) in commandColumns"
-                :key="index"
+                v-for="command in commandGroup"
+                :key="command.name"
+                class="flex flex-col gap-1"
               >
-                <div
-                  v-for="command in commandGroup"
-                  :key="command.name"
-                  class="command-item"
+                <span
+                  class="text-xs px-1 py-0.5 border border-gray-300 bg-gray-100 rounded-sm max-w-max"
+                  >{{ command.name }}</span
                 >
-                  <div class="command-name">{{ command.name }}</div>
-                  <div class="command-description">{{ command.description }}</div>
+                <div class="text-xs">
+                  {{ command.description }}
                 </div>
               </div>
             </div>
           </div>
-        </DrawerContent>
-      </DrawerPortal>
-    </DrawerRoot>
-  </ClientOnly>
+        </div>
+      </div>
+    </template>
+  </UDrawer>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from "vue";
-import { useMagicKeys, useKeyModifier, whenever } from "@vueuse/core";
+import { computed } from "vue";
 
-// Only import vaul-vue components on client-side
-let DrawerRoot: any, 
-    DrawerContent: any, 
-    DrawerDescription: any, 
-    DrawerTitle: any, 
-    DrawerTrigger: any, 
-    DrawerPortal: any, 
-    DrawerOverlay: any;
+const { showCommandsDrawer } = useGlobalElementAffordances();
 
-onMounted(() => {
-  // Dynamic import to ensure this only runs on client
-  import("vaul-vue").then((module) => {
-    DrawerRoot = module.DrawerRoot;
-    DrawerContent = module.DrawerContent;
-    DrawerDescription = module.DrawerDescription;
-    DrawerTitle = module.DrawerTitle;
-    DrawerTrigger = module.DrawerTrigger;
-    DrawerPortal = module.DrawerPortal;
-    DrawerOverlay = module.DrawerOverlay;
-  });
-});
-
-const isOpen = ref(false);
-
-// Define all commands with their descriptions
 const commands = [
   { name: "/task", description: "Create a new task" },
   { name: "/spend", description: "Log an expense" },
@@ -90,24 +57,6 @@ const commandColumns = computed(() => {
   }
 
   return columnsArray;
-});
-
-// Double space key press detection moved to app.vue for global access
-
-// Method to open the drawer programmatically
-const openDrawer = () => {
-  isOpen.value = true;
-};
-
-// Method to close the drawer programmatically
-const closeDrawer = () => {
-  isOpen.value = false;
-};
-
-// Expose methods to parent components
-defineExpose({
-  openDrawer,
-  closeDrawer,
 });
 </script>
 
@@ -163,7 +112,7 @@ defineExpose({
     border-radius: 0.375rem;
     background-color: #f3f4f6;
     transition: background-color 0.2s;
-    
+
     &:hover {
       background-color: #e5e7eb;
     }

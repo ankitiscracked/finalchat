@@ -2,7 +2,7 @@
   <div class="overview-section">
     <div class="overview-header">
       <div class="header-left">
-        <h2>{{ capitalizeFirst(overviewType) }} Overview</h2>
+        <h2>{{ capitalizeFirst(itemTypeToShow) }} Overview</h2>
         <div class="mode-selector" v-if="overviewMode === 'standard'">
           <button @click="$emit('changeMode', 'ai')" class="ai-button">
             <i class="ph-bold ph-robot"></i> AI Overview
@@ -23,7 +23,7 @@
     </div>
 
     <!-- Standard overview mode -->
-    <div v-if="overviewMode === 'standard'" class="overview-content">
+    <div v-if="overviewMode === 'standard'" class="">
       <ListItems
         :items="groupedItems"
         v-model:selected-item-ids="selectedItemIds"
@@ -57,14 +57,6 @@
           No AI overview available. Try adding more {{ overviewType }} items.
         </p>
       </div>
-    </div>
-
-    <!-- Debug info -->
-    <div class="debug-info">
-      <p>Focus active: {{ navigationState.isActive }}</p>
-      <p>Current index: {{ navigationState.currentIndex }}</p>
-      <p>Current item ID: {{ navigationState.currentItemId }}</p>
-      <p>Active popover task ID: {{ activePopoverTaskId }}</p>
     </div>
   </div>
 </template>
