@@ -72,27 +72,12 @@ import type { Task, TimelineItem } from "~/models";
 import { loadCollections as getAllCollections } from "../services/collectionService";
 import { loadProjects as getAllProjects } from "../services/projectService";
 
-const focusedItemId = defineModel("focusedItemId", {
-  type: Number,
-  default: null,
-});
-const selectedItemIds = defineModel("selectedItemIds", {
-  type: Array,
-  default: () => [],
-});
-
+const { selectedItemIds } = useGlobalContext();
 const props = defineProps<{
   items: Record<string, TimelineItem[]>;
 }>();
 
-const { refreshTasks } = useTasks();
 const { overviewType } = useCommands();
-
-const focusedIndex = ref(0);
-const selectedIndexes = ref<Set<number>>(new Set());
-const itemRefs = ref<HTMLElement[]>([]);
-// Task popover state
-const activePopoverTaskId = ref<number | null>(null);
 
 const serializedItems = computed(() =>
   Object.keys(props.items).flatMap((key) => props.items[key])
@@ -100,74 +85,14 @@ const serializedItems = computed(() =>
 
 const serializedItemsCount = computed(() => serializedItems.value.length);
 
-watch(focusedIndex, () => {
-  focusedItemId.value = serializedItems.value[focusedIndex.value].id!;
-});
+const { focusedIndex, selectedIndexes, itemRefs, setItemRef, onKeyDown } =
+  useListItems(serializedItemsCount.value);
 
 watch(selectedIndexes, () => {
   selectedItemIds.value = [...selectedIndexes.value].map(
     (index) => serializedItems.value[index].id!
   );
 });
-
-function onKeyDown(e) {
-  if (serializedItemsCount.value === 0) return;
-
-  if (e.key === "ArrowDown") {
-    focusedIndex.value = (focusedIndex.value + 1) % serializedItemsCount.value;
-    itemRefs.value[focusedIndex.value].focus();
-    e.preventDefault();
-  } else if (e.key === "ArrowUp") {
-    focusedIndex.value =
-      (focusedIndex.value - 1 + serializedItemsCount.value) %
-      serializedItemsCount.value;
-    itemRefs.value[focusedIndex.value].focus();
-    e.preventDefault();
-  } else if (e.key === "Enter") {
-    toggleSelection(focusedIndex.value);
-    e.preventDefault();
-  } else if (e.key === " " || e.key === "Spacebar" || e.key === "e") {
-    activePopoverTaskId.value = serializedItems.value[focusedIndex.value].id!;
-  }
-}
-
-function toggleSelection(index: number) {
-  const newSet = new Set(selectedIndexes.value);
-
-  if (newSet.has(index)) {
-    newSet.delete(index);
-  } else {
-    newSet.add(index);
-  }
-
-  selectedIndexes.value = newSet;
-}
-
-// Handle popover open/close
-const handlePopoverOpenChange = (isOpen: boolean, taskId?: number) => {
-  if (isOpen && taskId) {
-    activePopoverTaskId.value = taskId;
-
-    // Update navigation state to match this task
-    if (taskId) {
-      //   focusItemById(taskId);
-    }
-  } else {
-    activePopoverTaskId.value = null;
-  }
-};
-
-// Save edited task
-const saveEditedTask = async (editedTask: TimelineItem) => {
-  try {
-    // await updateItem(editedTask);
-    await refreshTasks();
-    // Close popover
-    activePopoverTaskId.value = null;
-  } catch (error) {
-    console.error("Error updating task:", error);
-  }
-};
 
 // Projects and collections state
 const projects = ref<ProjectRecord[]>([]);
@@ -185,17 +110,7 @@ function getCollectionName(collectionId: number): string {
   return collection ? collection.name : "Unknown Collection";
 }
 
-function setItemRef(index: number, el: HTMLElement) {
-  itemRefs.value[index] = el;
-}
-
 onMounted(async () => {
-  if (serializedItems.value.length > 0) {
-    focusedIndex.value = 0;
-    console.log("item ref", itemRefs.value[0]);
-    itemRefs.value[0].focus();
-  }
-
   try {
     const [projectsData, collectionsData] = await Promise.all([
       getAllProjects(),

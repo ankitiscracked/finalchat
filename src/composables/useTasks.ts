@@ -145,6 +145,10 @@ export function useTasks() {
     }
   };
 
+  const unscheduledTasks = computed(() => {
+    return tasks.value.filter((task) => task.scheduledDate === null);
+  });
+
   return {
     tasks,
     isLoading,
@@ -158,5 +162,6 @@ export function useTasks() {
     deleteMultiple,
     refreshTasks,
     initialize,
+    unscheduledTasks,
   };
 }

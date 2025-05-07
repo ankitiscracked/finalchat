@@ -281,6 +281,16 @@ export function useCommands() {
         showCommandsDrawer.value = true;
       },
     },
+    {
+      name: "unsceduled-tasks",
+      type: CommandType.SYSTEM_TOGGLE,
+      pattern: /^\/unscheduled-tasks\s*$/,
+      extractParams: () => ({}),
+      execute: () => {
+        showOverview.value = true;
+        overviewType.value = "unscheduled-tasks";
+      },
+    },
   ];
 
   const commandNames = commands.map((command) => command.name);

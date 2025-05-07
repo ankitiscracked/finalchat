@@ -24,10 +24,7 @@
 
     <!-- Standard overview mode -->
     <div v-if="overviewMode === 'standard'" class="">
-      <ListItems
-        :items="groupedItems"
-        v-model:selected-item-ids="selectedItemIds"
-      />
+      <ListItems :items="groupedItems" />
     </div>
 
     <!-- AI overview mode -->
@@ -73,7 +70,7 @@ const { tasks } = useTasks();
 const { events } = useEvents();
 const { notes } = useNotes();
 
-const { navigationState, selectedItemIds } = useGlobalContext();
+const { selectedItemIds } = useGlobalContext();
 
 const itemsByType = computed(() => {
   switch (itemTypeToShow.value) {

@@ -33,6 +33,7 @@
           />
 
           <WeekTasksView v-else-if="overviewType === 'week-tasks'" />
+          <UnscheduledTasksView v-else-if="overviewType === 'unscheduled-tasks'"
         </div>
       </transition>
 
