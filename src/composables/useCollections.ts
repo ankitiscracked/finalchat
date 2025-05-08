@@ -20,7 +20,6 @@ export function useCollections(newMessage: any) {
   const loadCollectionsData = async () => {
     try {
       collections.value = await loadCollections();
-      console.log(`Loaded ${collections.value.length} collections`);
     } catch (error) {
       console.error("Error loading collections:", error);
       collections.value = [];

@@ -1,67 +1,84 @@
 <template>
-  <div v-if="serializedItems.length > 0">
-    <div v-for="[date, items] in Object.entries(props.items)" :key="date">
-      <div class="date-separator">{{ date }}</div>
-      <template v-for="(item, idx) in items" :key="item.id">
-        <template v-if="item.type === 'task'">
-          <TaskItem
-            :task="item as Task"
-            :index="idx"
-            :focused="idx === focusedIndex"
-            :selected="selectedIndexes.has(idx)"
-            :project-name="getProjectName(item.projectId!)"
-            :handle-keydown="onKeyDown"
-            :set-itemref="setItemRef"
-          />
-        </template>
+  <div class="flex flex-col gap-4" v-if="serializedItems.length > 0">
+    <div
+      class="flex flex-col gap-2 items-center"
+      v-for="[date, items] in Object.entries(props.items)"
+      :key="date"
+    >
+      <span class="text-xs font-semibold text-stone-500">{{ date }}</span>
+      <div
+        v-if="_.isEmpty(items)"
+        class="flex justify-center w-full p-4 bg-stone-50 rounded-sm"
+      >
+        <span class="text-xs text-stone-500">No tasks for {{ date }}</span>
+      </div>
 
-        <template v-else>
-          <div
-            :class="[
-              'overview-item',
-              `item-${item.type}`,
-              {
-                focused: idx === focusedIndex,
-              },
-            ]"
-            tabindex="0"
-            @keydown="onKeyDown"
-            :ref="(el) => (itemRefs[idx] = el)"
-          >
-            <div class="checkbox-wrapper">
-              <input
-                type="checkbox"
-                :checked="selectedIndexes.has(idx)"
-                @change="toggleSelection(idx)"
-              />
-            </div>
-            <span class="item-icon">
-              <i :class="getIconClass(item.type)"></i>
-            </span>
-            <div class="item-content">
-              {{ item.content }}
+      <div v-else class="flex flex-col gap-4 w-full focus:bg-stone-50">
+        <div
+          class="flex flex-col gap-4"
+          v-for="(item, idx) in items"
+          :key="item.id"
+        >
+          <template v-if="item.type === 'task'">
+            <TaskItem
+              :task="item as Task"
+              :index="idx"
+              :focused="idx === focusedIndex"
+              :selected="selectedIndexes.has(idx)"
+              :project-name="getProjectName(item.projectId!)"
+              :handle-keydown="onKeyDown"
+              :set-itemref="setItemRef"
+            />
+          </template>
 
-              <!-- Show collection for notes and events with collectionId -->
-              <span
-                v-if="
-                  (item.type === 'event' || item.type === 'default') &&
-                  item.collectionId
-                "
-                class="item-collection"
-              >
-                in
-                <span class="collection-tag">
-                  @{{ getCollectionName(item.collectionId) }}</span
-                >
+          <template v-else>
+            <div
+              :class="[
+                'overview-item',
+                `item-${item.type}`,
+                {
+                  focused: idx === focusedIndex,
+                },
+              ]"
+              tabindex="0"
+              @keydown="onKeyDown"
+              :ref="(el) => (itemRefs[idx] = el)"
+            >
+              <div class="checkbox-wrapper">
+                <input
+                  type="checkbox"
+                  :checked="selectedIndexes.has(idx)"
+                  @change="toggleSelection(idx)"
+                />
+              </div>
+              <span class="item-icon">
+                <i :class="getIconClass(item.type)"></i>
               </span>
+              <div class="item-content">
+                {{ item.content }}
 
-              <span class="item-timestamp">{{
-                formatTime(item.createdAt)
-              }}</span>
+                <!-- Show collection for notes and events with collectionId -->
+                <span
+                  v-if="
+                    (item.type === 'event' || item.type === 'default') &&
+                    item.collectionId
+                  "
+                  class="item-collection"
+                >
+                  in
+                  <span class="collection-tag">
+                    @{{ getCollectionName(item.collectionId) }}</span
+                  >
+                </span>
+
+                <span class="item-timestamp">{{
+                  formatTime(item.createdAt)
+                }}</span>
+              </div>
             </div>
-          </div>
-        </template>
-      </template>
+          </template>
+        </div>
+      </div>
     </div>
   </div>
   <p v-else class="empty-overview">No {{ overviewType }} items found.</p>
@@ -70,7 +87,7 @@
 <script setup lang="ts">
 import type { Task, TimelineItem } from "~/models";
 import { loadCollections as getAllCollections } from "../services/collectionService";
-import { loadProjects as getAllProjects } from "../services/projectService";
+import _ from "lodash";
 
 const { selectedItemIds } = useGlobalContext();
 const props = defineProps<{

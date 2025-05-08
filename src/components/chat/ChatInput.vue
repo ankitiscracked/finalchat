@@ -1,58 +1,77 @@
 <template>
-  <div class="chat-input-area">
-    <div class="input-wrapper">
-      <textarea
-        :ref="(el) => setGlobalElementRef(el as HTMLElement, 'chatInputTextArea')"
-        id="chat-input"
-        :placeholder="
-          props.isDbReady
-            ? isEditing
-              ? 'Edit task and press Enter/Esc...'
-              : 'Type your message or command...'
-            : 'Initializing database...'
-        "
-        v-model="newMessage"
-        @keydown.meta.enter.prevent="submitMessage"
-        @keydown.ctrl.enter.prevent="submitMessage"
-        @keydown.tab.prevent="completeCommand"
-        @keydown="handleKeyDown"
-        @input="handleInput"
-        :disabled="!props.isDbReady"
-      ></textarea>
-
-      <div v-if="suggestionText" class="suggestion-overlay">
-        <span class="typed-part">{{ getTypedPart() }}</span
-        ><span class="suggestion-part">{{ suggestionText }}</span>
-        <div class="suggestion-hint">hit Tab to complete</div>
+  <div class="mt-4 flex gap-4 items-center">
+    <div class="flex flex-col w-full">
+      <div
+        class="flex gap-4 border border-gray-200 rounded-sm px-2 py-1"
+        v-if="context.suggestedCommands.length > 0"
+      >
+        <span
+          v-for="(command, index) in context.suggestedCommands"
+          :key="index"
+        >
+          <span
+            class="text-xs px-1 py-0.5 rounded-sm border"
+            :class="[
+              index === context.selectedSuggestionIndex
+                ? 'text-orange-600  bg-orange-100 border-orange-400'
+                : 'text-stone-500 border-stone-300',
+            ]"
+            @click.prevent.stop="send({ type: 'KEY_PRESSED', key: 'Enter' })"
+          >
+            {{ command }}
+          </span>
+        </span>
       </div>
 
-      <div v-if="isEditing" class="editing-chip">
-        Editing task... (Press Enter to save, Esc to cancel)
+      <div class="relative flex w-full">
+        <textarea
+          class="flex-1 p-2 border border-gray-300 rounded-sm resize-none outline-none text-sm min-h-[64px]"
+          :ref="(el) => setGlobalElementRef(el as HTMLElement, 'chatInputTextArea')"
+          id="chat-input"
+          :placeholder="
+            props.isDbReady
+              ? 'Type your message or command...'
+              : 'Initializing database...'
+          "
+          v-model="newMessage"
+          @keydown.meta.enter.prevent="
+            send({ type: 'KEY_PRESSED', key: 'Cmd + Enter' })
+          "
+          @keydown.ctrl.enter.prevent="
+            send({ type: 'KEY_PRESSED', key: 'Cmd + Enter' })
+          "
+          @keydown.tab.prevent="send({ type: 'KEY_PRESSED', key: 'Tab' })"
+          @keydown.enter.prevent="send({ type: 'KEY_PRESSED', key: 'Enter' })"
+          @keydown="handleKeyDown"
+          @input="handleInput"
+          :disabled="!props.isDbReady"
+        ></textarea>
+
+        <div
+          v-if="context.suggestionText"
+          class="absolute top-[6px] left-[9px] pointer-events-none"
+        >
+          <span class="text-sm">{{ context.textBeforeCursor }}</span
+          ><span class="text-stone-400 text-sm">{{
+            context.suggestionText
+          }}</span>
+          <div
+            class="text-[10px] border border-stone-200 p-0.5 rounded-sm mt-1 text-stone-600"
+          >
+            hit Tab to complete
+          </div>
+        </div>
+
+        <!-- Project Popover -->
+        <ProjectPopover />
       </div>
-
-      <!-- Project Popover -->
-      <ProjectPopover
-        v-if="showProjectPopover"
-        :position="projectPopoverPosition"
-        @close="closeProjectPopover"
-        @select="selectProject"
-        @create="selectProject"
-      />
-
-      <!-- Collection Popover -->
-      <CollectionPopover
-        v-if="showCollectionPopover"
-        :position="collectionPopoverPosition"
-        @close="closeCollectionPopover"
-        @select="selectCollection"
-        @create="selectCollection"
-      />
     </div>
 
     <button
       id="submit-button"
       @click="submitMessage"
       :disabled="!props.isDbReady"
+      class="p-2 bg-orange-600 text-white rounded-sm hover:bg-orange-700 transition-colors duration-200"
     >
       Send
     </button>
@@ -60,90 +79,71 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, computed } from "vue";
-import { useTaskOperations } from "../../composables/useTaskOperations";
+import { useMachine } from "@xstate/vue";
+import { ref } from "vue";
 
-const { setGlobalElementRef } = useGlobalElementAffordances();
+const { setGlobalElementRef, chatInputTextAreaRef } =
+  useGlobalElementAffordances();
 const props = defineProps<{
   isDbReady: boolean;
 }>();
 
-const {
-  handleShowCommand,
-  handleCloseOverviewCommand,
-  handleAiOverviewCommand,
-  handleCanvasCommand,
-  handleCloseCanvasCommand,
-  handleWeekTasksCommand,
-  handleCloseWeekTasksCommand,
-  handleDayCommand,
-} = useCommands();
 // Get task operations from composable
-const { deleteSelectedTasks, editTask, moveTasks } = useTaskOperations();
-const { executeCommand, messageIsCommand } = useCommands();
-const { selectedTaskIds, focusState } = useTaskSelection();
-const focusedTaskId = computed(() => focusState.value.currentTaskId);
+const { executeCommand, messageIsCommand, commandNames, overviewType } =
+  useCommands();
 const { createNote } = useNotes();
 
 const newMessage = ref("");
 
-// Extract project handling from composable
-const {
-  showProjectPopover,
-  projectPopoverPosition,
-  checkForProjectTag,
-  closeProjectPopover,
-  selectProject,
-} = useProjects(newMessage);
-
-// Extract collection handling from composable
-const {
-  showCollectionPopover,
-  collectionPopoverPosition,
-  checkForCollectionTag,
-  closeCollectionPopover,
-  selectCollection,
-} = useCollections(newMessage);
-
 // Extract suggestion handling from composable
-const {
-  suggestionText,
-  updateSuggestion,
-  completeCommand,
-  getTypedPart,
-  taskStates,
-} = useSuggestions(newMessage);
+const { suggestionText, updateSuggestion, prefixMap } =
+  useSuggestions(newMessage);
 
-// Editing state
-const isEditing = ref(false);
-const editingTaskId = ref<number | null>(null);
+const { snapshot, send } = useMachine(commandMachine, {
+  input: {
+    commandNames: commandNames,
+    commandPrefixMap: prefixMap,
+    overviewType: overviewType.value,
+  },
+});
+
+const context = computed(() => {
+  return snapshot.value.context;
+});
+
+watch(
+  context,
+  (updatedContext) => {
+    console.log("Updated context:", updatedContext);
+    console.log("snapshot:", snapshot.value.value);
+    newMessage.value = updatedContext.inputText;
+    const { cursorPosition } = updatedContext;
+    chatInputTextAreaRef.value!.setSelectionRange(
+      cursorPosition,
+      cursorPosition
+    );
+    chatInputTextAreaRef.value!.focus();
+  },
+  { deep: true }
+);
 
 // Handle keyboard events
 const handleKeyDown = (event: KeyboardEvent) => {
   // Update suggestion on any key press
   updateSuggestion();
 
-  // Handle special keys if needed
-  if (event.key === "Escape" && suggestionText.value) {
-    event.preventDefault();
-    suggestionText.value = "";
-  }
-
-  // If it's the # key, check for project tag immediately (don't wait for input event)
-  if (event.key === "#") {
-    console.log("# key pressed");
-    // Use nextTick to let the character appear in the textarea first
-    nextTick(() => {
-      checkForProjectTag();
+  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    send({
+      type: "CURSOR_MOVED",
+      position: chatInputTextAreaRef.value!.selectionStart,
     });
   }
 
-  // If it's the @ key, check for collection tag immediately
-  if (event.key === "@") {
-    console.log("@ key pressed");
-    // Use nextTick to let the character appear in the textarea first
-    nextTick(() => {
-      checkForCollectionTag();
+  // Handle special keys if needed
+  if (event.key === "Escape" && suggestionText.value) {
+    send({
+      type: "KEY_PRESSED",
+      key: "Escape",
     });
   }
 };
@@ -151,8 +151,13 @@ const handleKeyDown = (event: KeyboardEvent) => {
 // Handle input event (when text changes)
 const handleInput = (event: Event) => {
   console.log("Input event triggered");
-  checkForProjectTag();
-  checkForCollectionTag();
+  send({
+    type: "TEXT_CHANGED",
+    text: newMessage.value,
+    cursorPosition: chatInputTextAreaRef.value!.selectionStart,
+  });
+  // checkForProjectTag();
+  // checkForCollectionTag();
 };
 
 // Handle commands
@@ -172,6 +177,10 @@ const submitMessage = async () => {
     if (note) {
       newMessage.value = "";
     }
+    send({
+      type: "KEY_PRESSED",
+      key: "Cmd + Enter",
+    });
   } catch (error) {
     console.error("Error submitting message:", error);
   }

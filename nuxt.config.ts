@@ -10,7 +10,8 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
 
   modules: [
-    "@nuxt/ui", // Add Reka UI Nuxt module
+    "@nuxt/ui",
+    "@nuxt/content", // Add Reka UI Nuxt module
   ],
 
   // // Disable auto-imports for now until we can fix the issues

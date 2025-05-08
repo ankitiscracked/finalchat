@@ -45,7 +45,7 @@ const formatWeekRange = computed(() => {
 // Get tasks for a specific date
 function tasksForDate(date: Date) {
   return tasks.value.filter((task) =>
-    dayjs(task.scheduledDate).isSame(date, "day")
+    dayjs(task.scheduledAt).isSame(date, "day")
   );
 }
 

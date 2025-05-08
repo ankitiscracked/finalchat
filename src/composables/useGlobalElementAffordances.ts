@@ -9,6 +9,11 @@ const showCanvas = ref(false);
 
 export function useGlobalElementAffordances() {
   const showCommandsDrawer = useState("showCommandsDrawer", () => false);
+  const lastFocusedElement = useState<HTMLElement | null>(
+    "lastFocusedElement",
+    () => null
+  );
+
   function setGlobalElementRef(
     el: HTMLElement | null,
     type:
@@ -66,5 +71,6 @@ export function useGlobalElementAffordances() {
     toggleShowCanvas,
     scrollChatTimelineToBotton,
     showCommandsDrawer,
+    lastFocusedElement,
   };
 }

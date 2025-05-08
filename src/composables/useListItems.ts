@@ -36,6 +36,12 @@ export function useListItems(itemCount: number) {
     itemRefs.value[index] = el;
   }
 
+  function focusIndexItem(index: number) {
+    if (itemRefs.value[index]) {
+      itemRefs.value[index].focus();
+    }
+  }
+
   onMounted(() => {
     if (itemCount > 0) {
       focusedIndex.value = 0;
@@ -49,5 +55,6 @@ export function useListItems(itemCount: number) {
     itemRefs,
     onKeyDown,
     setItemRef,
+    focusIndexItem,
   };
 }

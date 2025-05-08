@@ -11,11 +11,12 @@ export function useCommands() {
   // Define item types
   const { createTask } = useTasks();
   const { createEvent } = useEvents();
+  const { createProject } = useProjects("");
   // Define item types for the command registry
 
+  const toast = useToast();
   // Get week tasks functionality
-  const { showWeekTasks, focusDay, getDayIndexFromName, toggleWeekTasksView } =
-    useWeekTasks();
+  const { showWeekTasks, toggleWeekTasksView } = useWeekTasks();
 
   // State for overview and canvas
   const showOverview = useState(() => false);
@@ -26,6 +27,7 @@ export function useCommands() {
   const itemTypeToShow = useState<ItemType>("itemTypeToShow", () => "task");
   const overviewMode = useState<OverviewMode>("overviewMode", () => "standard");
   const showCanvas = ref(false);
+  const showProjectPopover = useState("showProjectPopover", () => false);
 
   // Define command categories
   enum CommandType {
@@ -94,16 +96,38 @@ export function useCommands() {
         return { itemType: match ? match[1] : null };
       },
       execute: ({ itemType }) => {
-        if (allItemTypes.includes(itemType)) {
+        if (itemType === "task") {
+          showOverview.value = true;
+          overviewType.value = "upcoming-tasks";
+        } else {
           showOverview.value = true;
           overviewType.value = "item-list";
           itemTypeToShow.value = itemType;
-          return {
-            success: true,
-            activateTaskFocus: itemType === "task",
-          };
         }
-        return { success: false };
+      },
+    },
+    {
+      name: "projects",
+      type: CommandType.SYSTEM_TOGGLE,
+      pattern: /^\/projects\s+(\w+)\s*$/,
+      extractParams: (input) => {
+        const match = input.match(/^\/projects\s+(\w+)\s*$/);
+        return { itemType: match ? match[1] : null };
+      },
+      execute: ({ project }) => {
+        console.log("project selected:", project);
+      },
+    },
+    {
+      name: "tasks-in",
+      type: CommandType.SYSTEM_TOGGLE,
+      pattern: /^\/tasks-in\s+(\w+)\s*$/,
+      extractParams: (input) => {
+        const match = input.match(/^\/tasks-in\s+(\w+)\s*$/);
+        return { itemType: match ? match[1] : null };
+      },
+      execute: ({ project }) => {
+        console.log("project selected:", project);
       },
     },
     {
@@ -180,98 +204,6 @@ export function useCommands() {
         return { success: true };
       },
     },
-    // Day-specific commands
-    {
-      name: "mon",
-      type: CommandType.WEEK_VIEW_ACTION,
-      pattern: /^\/mon\s*$/,
-      extractParams: () => ({}),
-      execute: () => {
-        if (showWeekTasks.value) {
-          focusDay(0); // Monday is index 0
-          return { success: true };
-        }
-        return { success: false };
-      },
-    },
-    {
-      name: "tue",
-      type: CommandType.WEEK_VIEW_ACTION,
-      pattern: /^\/tue\s*$/,
-      extractParams: () => ({}),
-      execute: () => {
-        if (showWeekTasks.value) {
-          focusDay(1); // Tuesday is index 1
-          return { success: true };
-        }
-        return { success: false };
-      },
-    },
-    {
-      name: "wed",
-      type: CommandType.WEEK_VIEW_ACTION,
-      pattern: /^\/wed\s*$/,
-      extractParams: () => ({}),
-      execute: () => {
-        if (showWeekTasks.value) {
-          focusDay(2); // Wednesday is index 2
-          return { success: true };
-        }
-        return { success: false };
-      },
-    },
-    {
-      name: "thu",
-      type: CommandType.WEEK_VIEW_ACTION,
-      pattern: /^\/thu\s*$/,
-      extractParams: () => ({}),
-      execute: () => {
-        if (showWeekTasks.value) {
-          focusDay(3); // Thursday is index 3
-          return { success: true };
-        }
-        return { success: false };
-      },
-    },
-    {
-      name: "fri",
-      type: CommandType.WEEK_VIEW_ACTION,
-      pattern: /^\/fri\s*$/,
-      extractParams: () => ({}),
-      execute: () => {
-        if (showWeekTasks.value) {
-          focusDay(4); // Friday is index 4
-          return { success: true };
-        }
-        return { success: false };
-      },
-    },
-    {
-      name: "sat",
-      type: CommandType.WEEK_VIEW_ACTION,
-      pattern: /^\/sat\s*$/,
-      extractParams: () => ({}),
-      execute: () => {
-        if (showWeekTasks.value) {
-          focusDay(5); // Saturday is index 5
-          return { success: true };
-        }
-        return { success: false };
-      },
-    },
-    {
-      name: "sun",
-      type: CommandType.WEEK_VIEW_ACTION,
-      pattern: /^\/sun\s*$/,
-      extractParams: () => ({}),
-      execute: () => {
-        if (showWeekTasks.value) {
-          focusDay(6); // Sunday is index 6
-          return { success: true };
-        }
-        return { success: false };
-      },
-    },
     {
       name: "help",
       type: CommandType.SYSTEM_TOGGLE,
@@ -282,13 +214,30 @@ export function useCommands() {
       },
     },
     {
-      name: "unsceduled-tasks",
+      name: "unscheduled-tasks",
       type: CommandType.SYSTEM_TOGGLE,
       pattern: /^\/unscheduled-tasks\s*$/,
       extractParams: () => ({}),
       execute: () => {
         showOverview.value = true;
         overviewType.value = "unscheduled-tasks";
+      },
+    },
+    {
+      name: "add-project",
+      type: CommandType.ITEM_CREATION,
+      pattern: /^\/add-project\s+(.+)$/,
+      extractParams: (input) => {
+        const match = input.match(/^\/add-project\s+(.+)$/);
+        return { projectName: match ? match[1] : "" };
+      },
+      execute: async ({ projectName }) => {
+        // Logic to add a project
+        console.log("Project added:", projectName);
+        await createProject(projectName);
+        toast.add({
+          title: `Project "${projectName}" created successfully!`,
+        });
       },
     },
   ];
@@ -323,88 +272,6 @@ export function useCommands() {
     return commands.some((command) => command.pattern.test(trimmedMessage));
   }
 
-  // Handle /show command - maintaining backward compatibility
-  function handleShowCommand(message: string) {
-    const command = commands.find((cmd) => cmd.name === "show");
-    if (command && command.pattern.test(message.trim())) {
-      const params = command.extractParams(message.trim());
-      return command.execute(params);
-    }
-    return { success: false };
-  }
-
-  // Handle /close-overview command - maintaining backward compatibility
-  function handleCloseOverviewCommand(message: string): { success: boolean } {
-    const command = commands.find((cmd) => cmd.name === "close-overview");
-    if (command && command.pattern.test(message.trim())) {
-      return command.execute({});
-    }
-    return { success: false };
-  }
-
-  // Handle /ai-overview command - maintaining backward compatibility
-  function handleAiOverviewCommand(message: string): { success: boolean } {
-    const command = commands.find((cmd) => cmd.name === "ai-overview");
-    if (command && command.pattern.test(message.trim())) {
-      const params = command.extractParams(message.trim());
-      return command.execute(params);
-    }
-    return { success: false };
-  }
-
-  // Handle /canvas command - maintaining backward compatibility
-  function handleCanvasCommand(message: string): { success: boolean } {
-    const command = commands.find((cmd) => cmd.name === "canvas");
-    if (command && command.pattern.test(message.trim())) {
-      return command.execute({});
-    }
-    return { success: false };
-  }
-
-  // Handle /close-canvas command - maintaining backward compatibility
-  function handleCloseCanvasCommand(message: string): { success: boolean } {
-    const command = commands.find((cmd) => cmd.name === "close-canvas");
-    if (command && command.pattern.test(message.trim())) {
-      return command.execute({});
-    }
-    return { success: false };
-  }
-
-  // Handle /week-tasks command
-  function handleWeekTasksCommand(message: string): { success: boolean } {
-    const command = commands.find((cmd) => cmd.name === "week-tasks");
-    if (command && command.pattern.test(message.trim())) {
-      return command.execute({});
-    }
-    return { success: false };
-  }
-
-  // Handle /close-week-tasks command
-  function handleCloseWeekTasksCommand(message: string): { success: boolean } {
-    const command = commands.find((cmd) => cmd.name === "close-week-tasks");
-    if (command && command.pattern.test(message.trim())) {
-      return command.execute({});
-    }
-    return { success: false };
-  }
-
-  // Handle day-specific commands (/mon, /tue, etc.)
-  function handleDayCommand(message: string): { success: boolean } {
-    const dayCommands = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-    const trimmedMessage = message.trim().toLowerCase();
-
-    for (const day of dayCommands) {
-      if (trimmedMessage === `/${day}`) {
-        const command = commands.find((cmd) => cmd.name === day);
-        if (command) {
-          return command.execute({});
-        }
-      }
-    }
-
-    return { success: false };
-  }
-
   // Check if suggestions should be shown
   function shouldShowSuggestions(
     message: string,
@@ -436,17 +303,10 @@ export function useCommands() {
     showCanvas,
     showWeekTasks,
     executeCommand,
-    handleShowCommand,
-    handleCloseOverviewCommand,
-    handleAiOverviewCommand,
-    handleCanvasCommand,
-    handleCloseCanvasCommand,
-    handleWeekTasksCommand,
-    handleCloseWeekTasksCommand,
-    handleDayCommand,
     shouldShowSuggestions,
     handleTabKey,
     messageIsCommand,
     commandNames,
+    showProjectPopover,
   };
 }

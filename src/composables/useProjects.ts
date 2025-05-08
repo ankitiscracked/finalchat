@@ -1,10 +1,9 @@
-import { ref, nextTick } from "vue";
+import { nextTick, ref } from "vue";
+import getCaretCoordinates from "textarea-caret";
 import type { ProjectRecord } from "../services/indexedDB";
-import {
-  loadProjects,
-  createProject,
-  findProjectByName,
-} from "../services/projectService";
+import type { CommandPaletteItem } from "@nuxt/ui";
+
+const PROJECTS_STORE = "projects";
 
 export function useProjects(newMessage: any) {
   const { chatInputTextAreaRef: textareaRef } = useGlobalElementAffordances();
@@ -14,19 +13,64 @@ export function useProjects(newMessage: any) {
     left: 0,
   });
   const currentProject = ref<ProjectRecord | null>(null);
+
   const projects = ref<ProjectRecord[]>([]);
 
-  // Load projects from database
-  const loadProjectsData = async () => {
+  async function loadProjects() {
     try {
-      projects.value = await loadProjects();
-      console.log(`Loaded ${projects.value.length} projects`);
+      projects.value = await getAllItems<ProjectRecord>(PROJECTS_STORE);
     } catch (error) {
       console.error("Error loading projects:", error);
       projects.value = [];
     }
-  };
+  }
 
+  onMounted(async () => {
+    await loadProjects();
+  });
+
+  async function createProject(name: string): Promise<void> {
+    if (!name || name.trim() === "") {
+      throw new Error("Project name cannot be empty");
+    }
+
+    const projectData = {
+      name: name.trim(),
+      createdAt: new Date(),
+    };
+
+    await addItem<ProjectRecord>(PROJECTS_STORE, projectData);
+    await loadProjects();
+  }
+
+  async function getProject(id: number): Promise<ProjectRecord | null> {
+    return getItemById<ProjectRecord>(PROJECTS_STORE, id);
+  }
+
+  function findProjectByName(
+    projects: ProjectRecord[],
+    name: string
+  ): ProjectRecord | undefined {
+    return projects.find((p) => p.name.toLowerCase() === name.toLowerCase());
+  }
+
+  function getProjectName(projectId: number): string | null {
+    const project = projects.value.find((p) => p.id === projectId);
+    return project ? project.name : null;
+  }
+
+  const projectPopoverCoordinates = computed(() => {
+    if (!textareaRef.value) return;
+    const { top, left } = getCaretCoordinates(
+      textareaRef.value,
+      textareaRef.value.selectionEnd
+    );
+
+    return {
+      top,
+      left,
+    };
+  });
   // Function to check for project tags in input
   const checkForProjectTag = () => {
     if (!textareaRef) {
@@ -148,15 +192,15 @@ export function useProjects(newMessage: any) {
   };
 
   // Handle project selection
-  const selectProject = async (project: ProjectRecord) => {
+  const selectProject = async (project: CommandPaletteItem) => {
     if (!textareaRef.value) return;
 
     // Store the selected project
-    currentProject.value = project;
+    currentProject.value = project.value;
 
     // Update projects list if it's a new project
     if (!projects.value.some((p) => p.id === project.id)) {
-      projects.value.push(project);
+      projects.value.push(currentProject.value as ProjectRecord);
     }
 
     // Close the popover
@@ -248,15 +292,18 @@ export function useProjects(newMessage: any) {
   };
 
   return {
+    createProject,
     showProjectPopover,
     projectPopoverPosition,
     currentProject,
     projects,
-    loadProjectsData,
+    loadProjectsData: loadProjects,
     checkForProjectTag,
     closeProjectPopover,
     selectProject,
     extractProjectFromContent,
     createAndSelectProject,
+    projectPopoverCoordinates,
+    getProjectName,
   };
 }

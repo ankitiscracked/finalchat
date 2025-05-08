@@ -3,55 +3,48 @@
     :task="props.task"
     v-model:is-task-edit-popover-open="isTaskEditPopoverOpen"
     v-model:is-task-status-popover-open="isTaskStatusPopoverOpen"
-    v-bind:is-move-task-popover-open="isMoveTaskPopoverOpen"
+    v-model:is-move-task-popover-open="isMoveTaskPopoverOpen"
+    v-model:is-project-popover-open="showProjectPopover"
   >
     <div
-      :class="[
-        'overview-item',
-        `item-${task.type}`,
-        {
-          focused: props.focused,
-        },
-      ]"
+      class="outline-none border-[1.4px] border-stone-200 flex gap-2 items-start py-2 px-4 rounded-sm focus:bg-stone-100"
       :tabindex="0"
-      @click="
+      @click.prevent="
         () => {
           isTaskEditPopoverOpen = false;
           isTaskStatusPopoverOpen = false;
+          isDeleteModalOpen = false;
           isMoveTaskPopoverOpen = false;
+          showProjectPopover = false;
         }
       "
       @keydown.prevent="onKeyDown"
       :ref="(el) => props.setItemref(props.index, el)"
     >
-      <div class="checkbox-wrapper">
+      <div class="flex gap-3">
         <input type="checkbox" :checked="props.selected" />
+        <UIcon name="i-ph-check-circle-bold" size="18" class="text-stone-500" />
       </div>
-      <span class="item-icon">
-        <i :class="iconClass"></i>
-      </span>
-      <div class="item-content">
-        {{ task.content }}
+
+      <div class="flex flex-col gap-1 ml-1">
+        <span class="text-sm">{{ task.content }}</span>
 
         <!-- Show status for tasks -->
-        <span
-          v-if="task.type === 'task'"
-          class="item-status"
-          :class="[`status-${task.status || 'todo'}`]"
-        >
+        <span class="text-xs" :class="[`status-${task.status || 'todo'}`]">
           {{ formatStatus(task.status || "todo") }}
         </span>
 
         <!-- Show project for tasks with projectId -->
-        <span
-          v-if="task.type === 'task' && task.projectId"
-          class="item-project"
-        >
+        <span class="text-xs text-stone-500" v-if="projectName">
           in
-          <span class="project-tag">#{{ projectName }}</span>
+          <span class="border rounded-sm py-0.5 px-1 border-stone-300">{{
+            projectName
+          }}</span>
         </span>
 
-        <span class="item-timestamp">{{ formattedTime }}</span>
+        <span class="text-xs font-normal text-stone-400">{{
+          formattedTime
+        }}</span>
       </div>
     </div>
   </TaskItemWithActions>
@@ -73,14 +66,16 @@ const props = defineProps<{
   index: number;
   focused: boolean;
   selected: boolean;
-  projectName: string;
   handleKeydown: (event: KeyboardEvent) => void;
   setItemref: (index: number, el: HTMLElement) => void;
+  onProjectPopoverClose: () => void;
 }>();
 const isTaskStatusPopoverOpen = ref(false);
 const isTaskEditPopoverOpen = ref(false);
 const isMoveTaskPopoverOpen = ref(false);
 const isDeleteModalOpen = ref(false);
+const showProjectPopover = ref(false);
+const { getProjectName } = useProjects("");
 
 // Compute icon class based on task type
 const iconClass = computed(() => {
@@ -94,6 +89,11 @@ const iconClass = computed(() => {
     default:
       return "ph-bold ph-chat-text";
   }
+});
+
+const projectName = computed(() => {
+  const task = props.task as TaskRecord;
+  return task.projectId ? getProjectName(task.projectId) : "";
 });
 
 // Format task status
@@ -111,7 +111,6 @@ function formatStatus(status: string): string {
 }
 
 // Format time
-
 const formattedTime = computed(() => {
   if (!props.task.createdAt) return "";
   return props.task.createdAt.toLocaleTimeString(undefined, {
@@ -130,6 +129,8 @@ function onKeyDown(event: KeyboardEvent) {
     isDeleteModalOpen.value = true;
   } else if (event.key === "m") {
     isMoveTaskPopoverOpen.value = true;
+  } else if (event.key === "p") {
+    showProjectPopover.value = true;
   } else {
     props.handleKeydown(event);
   }

@@ -1,5 +1,5 @@
 <template>
-  <UApp>
+  <UApp :toaster="{ position: 'bottom-center' }">
     <div
       :class="[
         'app-container',
@@ -33,7 +33,10 @@
           />
 
           <WeekTasksView v-else-if="overviewType === 'week-tasks'" />
-          <UnscheduledTasksView v-else-if="overviewType === 'unscheduled-tasks'"
+          <UnscheduledTasksView
+            v-else-if="overviewType === 'unscheduled-tasks'"
+          />
+          <UpcomingTasksView v-else-if="overviewType === 'upcoming-tasks'" />
         </div>
       </transition>
 
@@ -51,27 +54,25 @@
 </template>
 
 <script setup lang="ts">
-const { chatInputRef, setGlobalElementRef, scrollChatTimelineToBotton } =
+import { useActiveElement, useRefHistory } from "@vueuse/core";
+
+const { setGlobalElementRef, scrollChatTimelineToBotton, lastFocusedElement } =
   useGlobalElementAffordances();
 
 // Get command handling from composable
-const { showOverview, overviewType, overviewMode, showCanvas } = useCommands();
+const { showOverview, overviewType, showCanvas } = useCommands();
 
-// Get AI overview handling from composable
-const { aiOverviewLoading, aiOverviewContent, generateAiOverview } =
-  useAiOverview();
-
-const { refreshTimeline } = useTimeline();
 const isDbReady = ref(false);
 
 useEventListeners();
+
+const activeElement = useActiveElement();
+const { history } = useRefHistory(activeElement);
 
 // Initialize app
 onMounted(async () => {
   if (process.client) {
     try {
-      console.log("Component mounted client-side, initializing data...");
-
       // Initialize all data in parallel
       const { initialize: initTasks } = useTasks();
       const { initialize: initEvents } = useEvents();
@@ -92,7 +93,6 @@ onMounted(async () => {
       ]);
 
       isDbReady.value = true;
-      console.log("All data initialized and ready to use");
 
       scrollChatTimelineToBotton();
     } catch (error) {

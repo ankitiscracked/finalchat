@@ -1,8 +1,8 @@
-import { openDB, type DBSchema, type IDBPDatabase } from "idb";
+import Dexie, { type Table } from "dexie";
 
 // Database configuration
 const DB_NAME = "TimelineAppDB";
-const DB_VERSION = 5; // Incremented for new schema
+const DB_VERSION = 8; // Incremented for new schema
 
 // Store names
 const TASKS_STORE = "tasks";
@@ -30,7 +30,7 @@ export interface TaskRecord extends BaseRecord {
   content: string;
   status: "todo" | "in-progress" | "done";
   projectId?: number;
-  scheduledDate?: Date;
+  scheduledAt?: Date;
 }
 
 export interface EventRecord extends BaseRecord {
@@ -55,242 +55,169 @@ export interface CollectionRecord extends BaseRecord {
   name: string;
 }
 
-// Database schema typing
-interface TimelineDB extends DBSchema {
-  [TASKS_STORE]: {
-    key: number;
-    value: TaskRecord;
-    indexes: {
-      status: string;
-      projectId: number;
-    };
-  };
-  [EVENTS_STORE]: {
-    key: number;
-    value: EventRecord;
-    indexes: {
-      projectId: number;
-      collectionId: number;
-      eventDate: Date;
-    };
-  };
-  [NOTES_STORE]: {
-    key: number;
-    value: NoteRecord;
-    indexes: {
-      collectionId: number;
-    };
-  };
-  [PROJECTS_STORE]: {
-    key: number;
-    value: ProjectRecord;
-    indexes: { name: string };
-  };
-  [COLLECTIONS_STORE]: {
-    key: number;
-    value: CollectionRecord;
-    indexes: { name: string };
-  };
+// Define Dexie database class
+class TimelineDB extends Dexie {
+  tasks!: Table<TaskRecord>;
+  events!: Table<EventRecord>;
+  notes!: Table<NoteRecord>;
+  projects!: Table<ProjectRecord>;
+  collections!: Table<CollectionRecord>;
+
+  constructor() {
+    super(DB_NAME);
+
+    // Define database schema
+    this.version(DB_VERSION).stores({
+      [TASKS_STORE]: "++id, status, projectId, scheduledAt",
+      [EVENTS_STORE]: "++id, projectId, collectionId, eventDate",
+      [NOTES_STORE]: "++id, collectionId",
+      [PROJECTS_STORE]: "++id, &name",
+      [COLLECTIONS_STORE]: "++id, &name",
+    });
+
+    // Handle date conversion automatically
+    this.tasks.hook("reading", convertDates);
+    this.events.hook("reading", convertDates);
+    this.notes.hook("reading", convertDates);
+    this.projects.hook("reading", convertDates);
+    this.collections.hook("reading", convertDates);
+  }
+}
+
+// Helper function to convert dates when reading from database
+function convertDates(obj: any) {
+  if (obj.createdAt) {
+    obj.createdAt = new Date(obj.createdAt);
+  }
+  if (obj.eventDate) {
+    obj.eventDate = new Date(obj.eventDate);
+  }
+  if (obj.scheduledAt) {
+    obj.scheduledAt = new Date(obj.scheduledAt);
+  }
+  return obj;
 }
 
 // Singleton database connection
-let dbPromise: Promise<IDBPDatabase<TimelineDB>> | null = null;
+let db: TimelineDB | null = null;
 
 // Get database connection
-export function getDb(): Promise<IDBPDatabase<TimelineDB>> {
+export function getDb(): TimelineDB {
   if (typeof window === "undefined") {
-    return Promise.reject(
-      new Error("IndexedDB cannot be accessed server-side.")
-    );
+    throw new Error("IndexedDB cannot be accessed server-side.");
   }
 
-  if (!dbPromise) {
-    dbPromise = openDB<TimelineDB>(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion, newVersion, transaction) {
-        console.log(`Creating new database version ${newVersion}`);
+  if (!db) {
+    db = new TimelineDB();
 
-        // Create tasks store
-        if (!db.objectStoreNames.contains(TASKS_STORE)) {
-          const taskStore = db.createObjectStore(TASKS_STORE, {
-            keyPath: "id",
-            autoIncrement: true,
-          });
-          taskStore.createIndex("status", "status");
-          taskStore.createIndex("projectId", "projectId");
-          console.log(`Created tasks store with indexes`);
-        }
+    // db.version(DB_VERSION + 1).upgrade((tx) => {
+    //   tx.table(TASKS_STORE)
+    //     .toCollection()
+    //     .modify((task) => {
+    //       task.createdAt = new Date();
+    //       task.scheduledAt = null;
+    //     });
+    // });
 
-        // Create events store
-        if (!db.objectStoreNames.contains(EVENTS_STORE)) {
-          const eventStore = db.createObjectStore(EVENTS_STORE, {
-            keyPath: "id",
-            autoIncrement: true,
-          });
-          eventStore.createIndex("projectId", "projectId");
-          eventStore.createIndex("collectionId", "collectionId");
-          eventStore.createIndex("eventDate", "eventDate");
-          console.log(`Created events store with indexes`);
-        }
+    // Add error handling
+    db.on("blocked", () =>
+      console.warn("IndexedDB upgrade blocked by another connection")
+    );
 
-        // Create notes store
-        if (!db.objectStoreNames.contains(NOTES_STORE)) {
-          const noteStore = db.createObjectStore(NOTES_STORE, {
-            keyPath: "id",
-            autoIncrement: true,
-          });
-          noteStore.createIndex("collectionId", "collectionId");
-          console.log(`Created notes store with indexes`);
-        }
-
-        // Create projects store
-        if (!db.objectStoreNames.contains(PROJECTS_STORE)) {
-          const projectStore = db.createObjectStore(PROJECTS_STORE, {
-            keyPath: "id",
-            autoIncrement: true,
-          });
-          projectStore.createIndex("name", "name", { unique: true });
-          console.log(`Created projects store with indexes`);
-        }
-
-        // Create collections store
-        if (!db.objectStoreNames.contains(COLLECTIONS_STORE)) {
-          const collectionsStore = db.createObjectStore(COLLECTIONS_STORE, {
-            keyPath: "id",
-            autoIncrement: true,
-          });
-          collectionsStore.createIndex("name", "name", { unique: true });
-          console.log(`Created collections store with indexes`);
-        }
-
-        console.log("Database setup complete");
-      },
-      blocked() {
-        console.warn("IndexedDB upgrade blocked by another connection");
-      },
-      blocking() {
-        console.warn("This connection is blocking a newer version");
-      },
-      terminated() {
-        console.error("IndexedDB connection was unexpectedly terminated");
-        dbPromise = null;
-      },
+    db.on("versionchange", () => {
+      console.warn("Database version changed in another connection");
+      if (db) db.close();
+      db = null;
     });
   }
-  return dbPromise;
+
+  return db;
 }
 
-// Generic CRUD operations that work with any store
+// Generic CRUD operations
 
 // Add item to a store
 export async function addItem<T extends BaseRecord>(
   storeName: StoreName,
   item: Omit<T, "id"> & { createdAt?: Date }
 ): Promise<number> {
-  const db = await getDb();
+  const db = getDb();
   const itemToAdd = {
     ...item,
     createdAt: item.createdAt || new Date(),
   } as T;
 
-  const id = await db.add(storeName, itemToAdd);
+  const id = await db.table(storeName).add(itemToAdd);
   console.log(`Item added to ${storeName}, ID:`, id);
-  return id;
+  return id as number;
 }
 
 // Get all items from a store
 export async function getAllItems<T extends BaseRecord>(
-  storeName: string
+  storeName: StoreName
 ): Promise<T[]> {
-  const db = await getDb();
-  const items = await db.getAll(storeName);
-
-  // Ensure dates are Date objects (needed because IndexedDB serializes dates)
-  return items.map(
-    (item) =>
-      ({
-        ...item,
-        createdAt: new Date(item.createdAt),
-        ...((item as any).eventDate && {
-          eventDate: new Date((item as any).eventDate),
-        }),
-      } as T)
-  );
+  const db = getDb();
+  const items = await db.table(storeName).toArray();
+  return items as T[];
 }
 
 // Get item by ID
 export async function getItemById<T extends BaseRecord>(
-  storeName: string,
+  storeName: StoreName,
   id: number
 ): Promise<T | null> {
-  const db = await getDb();
-  const item = await db.get(storeName, id);
-
-  if (!item) return null;
-
-  return {
-    ...item,
-    createdAt: new Date(item.createdAt),
-    ...((item as any).eventDate && {
-      eventDate: new Date((item as any).eventDate),
-    }),
-  } as T;
+  const db = getDb();
+  const item = await db.table(storeName).get(id);
+  return item as T | null;
 }
 
 // Update item
 export async function updateItem<T extends BaseRecord>(
-  storeName: string,
+  storeName: StoreName,
   item: T
 ): Promise<void> {
   if (!item.id) {
     throw new Error(`Cannot update item in ${storeName} without ID`);
   }
 
-  const db = await getDb();
-  await db.put(storeName, item);
+  const db = getDb();
+  await db.table(storeName).put(item);
   console.log(`Item updated in ${storeName}, ID:`, item.id);
 }
 
 // Delete item
 export async function deleteItem(
-  storeName: string,
+  storeName: StoreName,
   itemId: number
 ): Promise<void> {
-  const db = await getDb();
-  await db.delete(storeName, itemId);
+  const db = getDb();
+  await db.table(storeName).delete(itemId);
   console.log(`Item deleted from ${storeName}, ID:`, itemId);
 }
 
 // Delete multiple items
 export async function deleteItems(
-  storeName: string,
+  storeName: StoreName,
   itemIds: number[]
 ): Promise<void> {
-  const db = await getDb();
-  const tx = db.transaction(storeName, "readwrite");
-
-  await Promise.all([...itemIds.map((id) => tx.store.delete(id)), tx.done]);
-
+  const db = getDb();
+  await db.transaction("rw", db.table(storeName), async () => {
+    await Promise.all(itemIds.map((id) => db.table(storeName).delete(id)));
+  });
   console.log(`${itemIds.length} items deleted from ${storeName}`);
 }
 
 // Query by index
 export async function getItemsByIndex<T extends BaseRecord>(
-  storeName: string,
+  storeName: StoreName,
   indexName: string,
   value: any
 ): Promise<T[]> {
-  const db = await getDb();
-  const index = db.transaction(storeName).store.index(indexName);
-  const items = await index.getAll(value);
-
-  return items.map(
-    (item) =>
-      ({
-        ...item,
-        createdAt: new Date(item.createdAt),
-        ...((item as any).eventDate && {
-          eventDate: new Date((item as any).eventDate),
-        }),
-      } as T)
-  );
+  const db = getDb();
+  const items = await db
+    .table(storeName)
+    .where(indexName)
+    .equals(value)
+    .toArray();
+  return items as T[];
 }

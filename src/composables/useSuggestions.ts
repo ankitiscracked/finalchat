@@ -1,3 +1,4 @@
+import { el, tr } from "@nuxt/ui/runtime/locale/index.js";
 import { ref, watch, nextTick, type Ref } from "vue";
 
 interface PrefixEntry {
@@ -6,9 +7,27 @@ interface PrefixEntry {
 }
 
 export function useSuggestions(newMessage: Ref<string>) {
-  const { commandNames, overviewType } = useCommands();
+  const { commandNames, overviewType, showProjectPopover } = useCommands();
   const { chatInputTextAreaRef: textareaRef } = useGlobalElementAffordances();
   const suggestionText = ref("");
+  const suggestedCommands = ref<string[]>([]);
+  const commandSupportsTabCompletion = ref(false);
+  const selectedsuggestionIndex = ref(-1);
+
+  const textBeforeCursor = computed(() => {
+    if (!textareaRef.value) return "";
+    const cursorPos = textareaRef.value.selectionStart;
+    return newMessage.value.substring(0, cursorPos);
+  });
+
+  const textAfterCursor = computed(() => {
+    if (!textareaRef.value) return "";
+    const cursorPos = textareaRef.value.selectionStart;
+    return newMessage.value.substring(cursorPos);
+  });
+
+  const commandPattern = /^\/([a-z0-9-]*)$/;
+  const commandWithArgPattern = /^\/([a-z0-9-]+)\s+([a-z0-9-]*)$/;
 
   // Command constraints mapping for contextual suggestions
   const commandConstraints: Record<string, { allowedOverviewTypes: string[] }> =
@@ -19,24 +38,6 @@ export function useSuggestions(newMessage: Ref<string>) {
 
   // Define available task states
   const taskStates = ["todo", "in-progress", "done"];
-
-  // Command abbreviations mapping
-  const abbreviationMap = {
-    del: "delete",
-    mov: "move-to",
-    ed: "edit",
-    sho: "show",
-    "ai-ov": "ai-overview",
-  };
-
-  // Reverse mapping for command lookup
-  const fullCommandMap = Object.entries(abbreviationMap).reduce(
-    (acc, [abbr, full]) => {
-      acc[full] = abbr;
-      return acc;
-    },
-    {} as Record<string, string>
-  );
 
   // Build command prefix map
   const prefixMap = new Map<string, PrefixEntry>();
@@ -55,15 +56,6 @@ export function useSuggestions(newMessage: Ref<string>) {
       for (let i = 1; i <= command.length; i++) {
         const prefix = command.substring(0, i);
         addToPrefixMap(prefix, command);
-      }
-
-      // Add prefixes for abbreviations if available
-      const abbr = fullCommandMap[command];
-      if (abbr) {
-        for (let i = 1; i <= abbr.length; i++) {
-          const prefix = abbr.substring(0, i);
-          addToPrefixMap(prefix, command);
-        }
       }
     });
 
@@ -124,9 +116,11 @@ export function useSuggestions(newMessage: Ref<string>) {
     );
   };
 
-  // Initialize prefix maps
-  buildPrefixMap();
-  buildStatesPrefixMap();
+  onMounted(() => {
+    // Initialize prefix maps
+    buildPrefixMap();
+    buildStatesPrefixMap();
+  });
 
   // Watch for changes in overview type to rebuild the prefix map
   watch(overviewType, () => {
@@ -140,25 +134,14 @@ export function useSuggestions(newMessage: Ref<string>) {
 
   // Update the suggestion text based on current input and cursor position
   const updateSuggestion = () => {
-    if (!textareaRef.value) return;
-
-    const currentMessage = newMessage.value;
-    const cursorPos = textareaRef.value.selectionStart;
-    const textBeforeCursor = currentMessage.substring(0, cursorPos);
-    const textAfterCursor = currentMessage.substring(cursorPos);
-
     // Ensure there are no characters beyond the cursor position
-    if (hasCharactersAfterCursor(textAfterCursor)) {
+    if (textAfterCursor.value.trim() !== "") {
       clearSuggestion();
       return;
     }
 
-    // Command pattern detection
-    const commandPattern = /^\/([a-z0-9-]*)$/;
-    const commandWithArgPattern = /^\/([a-z0-9-]+)\s+([a-z0-9-]*)$/;
-
     // Handle /command pattern
-    const commandMatch = textBeforeCursor.match(commandPattern);
+    const commandMatch = textBeforeCursor.value.match(commandPattern);
     if (commandMatch) {
       const partialCommand = commandMatch[1].toLowerCase();
       suggestMatchingCommand(partialCommand);
@@ -166,7 +149,7 @@ export function useSuggestions(newMessage: Ref<string>) {
     }
 
     // Handle /command arg pattern
-    const argMatch = textBeforeCursor.match(commandWithArgPattern);
+    const argMatch = textBeforeCursor.value.match(commandWithArgPattern);
     if (argMatch) {
       const command = argMatch[1].toLowerCase();
       const partialArg = argMatch[2].toLowerCase();
@@ -187,11 +170,9 @@ export function useSuggestions(newMessage: Ref<string>) {
     clearSuggestion();
   };
 
-  const hasCharactersAfterCursor = (textAfterCursor: string) =>
-    textAfterCursor.trim() !== "";
-
   const clearSuggestion = () => {
     suggestionText.value = "";
+    suggestedCommands.value = [];
   };
 
   // Suggest a matching command based on partial input
@@ -215,6 +196,8 @@ export function useSuggestions(newMessage: Ref<string>) {
       if (entry.isUnique) {
         const fullCommand = entry.commands[0];
         suggestionText.value = fullCommand.substring(partialCommand.length);
+      } else {
+        suggestedCommands.value = entry.commands;
       }
     } else {
       clearSuggestion();
@@ -265,30 +248,25 @@ export function useSuggestions(newMessage: Ref<string>) {
 
   // Complete the command when Tab is pressed
   const completeCommand = () => {
-    if (suggestionText.value) {
-      const currentMessage = newMessage.value;
-      const cursorPos =
-        textareaRef.value?.selectionStart ?? currentMessage.length;
-      const textBeforeCursor = currentMessage.substring(0, cursorPos);
-      const textAfterCursor = currentMessage.substring(cursorPos);
+    if (suggestedCommands.value.length > 0) {
+      selectedsuggestionIndex.value =
+        (selectedsuggestionIndex.value + 1) % suggestedCommands.value.length;
+    }
 
+    if (suggestionText.value || commandSupportsTabCompletion.value) {
       // Ensure there are no characters beyond the cursor position
-      if (textAfterCursor.trim() !== "") {
+      if (textAfterCursor.value.trim() !== "") {
         return;
       }
 
-      // Detect command patterns
-      const commandPattern = /^\/([a-z0-9-]*)$/;
-      const commandWithArgPattern = /^\/([a-z0-9-]+)\s+([a-z0-9-]*)$/;
-
       // Handle /command pattern
-      const commandMatch = textBeforeCursor.match(commandPattern);
+      const commandMatch = textBeforeCursor.value.match(commandPattern);
       if (commandMatch) {
         const partialCommand = commandMatch[1];
         const fullCommand = partialCommand + suggestionText.value;
 
         // Complete the command
-        newMessage.value = `/${fullCommand}${textAfterCursor}`;
+        newMessage.value = `/${fullCommand}`;
 
         // Move cursor after the completed command
         nextTick(() => {
@@ -300,9 +278,17 @@ export function useSuggestions(newMessage: Ref<string>) {
           // Add a space after the command if it's not a special command
           if (!["show", "ai-overview"].includes(fullCommand as any)) {
             newMessage.value =
-              newMessage.value.substring(0, newCursorPos) +
-              " " +
-              newMessage.value.substring(newCursorPos);
+              newMessage.value.substring(0, newCursorPos) + " ";
+
+            if (["projects", "tasks-in"].includes(fullCommand)) {
+              if (commandSupportsTabCompletion.value) {
+                showProjectPopover.value = true;
+              } else {
+                commandSupportsTabCompletion.value = true;
+              }
+            } else {
+              commandSupportsTabCompletion.value = false;
+            }
 
             // Move cursor after the space
             nextTick(() => {
@@ -318,14 +304,15 @@ export function useSuggestions(newMessage: Ref<string>) {
       }
 
       // Handle /command arg pattern
-      const argMatch = textBeforeCursor.match(commandWithArgPattern);
+      const argMatch = textBeforeCursor.value.match(commandWithArgPattern);
       if (argMatch) {
         const command = argMatch[1];
+
         const partialArg = argMatch[2];
         const fullArg = partialArg + suggestionText.value;
 
         // Complete the command with argument
-        newMessage.value = `/${command} ${fullArg}${textAfterCursor}`;
+        newMessage.value = `/${command} ${fullArg}${textAfterCursor.value}`;
 
         // Move cursor after the completed command with argument
         nextTick(() => {
@@ -338,39 +325,15 @@ export function useSuggestions(newMessage: Ref<string>) {
     }
   };
 
-  // Helper to get the typed part for suggestion overlay
-  function getTypedPart(): string {
-    if (!textareaRef.value) return "";
-
-    const currentMessage = newMessage.value;
-    const cursorPos = textareaRef.value.selectionStart;
-    const textBeforeCursor = currentMessage.substring(0, cursorPos);
-
-    // Command pattern detection
-    const commandPattern = /^\/([a-z0-9-]*)$/;
-    const commandWithArgPattern = /^\/([a-z0-9-]+)\s+([a-z0-9-]*)$/;
-
-    // Handle /command pattern
-    const commandMatch = textBeforeCursor.match(commandPattern);
-    if (commandMatch) {
-      return textBeforeCursor;
-    }
-
-    // Handle /command arg pattern
-    const argMatch = textBeforeCursor.match(commandWithArgPattern);
-    if (argMatch) {
-      return textBeforeCursor;
-    }
-
-    return "";
-  }
-
   return {
     suggestionText,
     updateSuggestion,
     completeCommand,
-    getTypedPart,
+    textBeforeCursor,
     commandConstraints,
     taskStates,
+    suggestedCommands,
+    selectedsuggestionIndex,
+    prefixMap,
   };
 }

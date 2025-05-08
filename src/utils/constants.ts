@@ -5,5 +5,15 @@ export type OverviewType =
   | "item-list"
   | "week-tasks"
   | "unscheduled-tasks"
+  | "upcoming-tasks"
   | "calendar"
   | "project-tasks";
+
+// Command constraints mapping for contextual suggestions
+export const commandConstraints: Record<
+  string,
+  { allowedOverviewTypes: string[] }
+> = {
+  "move-to": { allowedOverviewTypes: ["task"] },
+  // Add more constrained commands here as needed
+};

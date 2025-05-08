@@ -14,7 +14,7 @@
           isTaskEditPopoverOpen = false;
           isTaskStatusPopoverOpen = false;
           isDeleteModalOpen = false;
-          isDeleteModalOpen = false;
+          isMoveTaskPopoverOpen = false;
         }
       "
       @keydown.prevent="onKeyDown"
@@ -37,7 +37,6 @@
 <script setup lang="ts">
 import dayjs from "dayjs";
 import type { TaskRecord } from "../../services/indexedDB";
-import { getProjectName } from "../../services/projectService";
 import TaskItemWithActions from "../TaskItemWithActions.vue";
 
 const props = defineProps<{

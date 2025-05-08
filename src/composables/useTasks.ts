@@ -1,8 +1,11 @@
+import _ from "lodash";
 import { computed, onMounted } from "vue";
 import type { TaskRecord } from "../services/indexedDB";
-import * as taskService from "../services/taskService";
+
+const TASKS_STORE = "tasks";
 
 /**
+ *
  * Composable for working with tasks
  */
 export function useTasks() {
@@ -17,15 +20,8 @@ export function useTasks() {
   const initialize = async () => {
     if (isInitialized.value) return;
 
-    isLoading.value = true;
-    try {
-      tasks.value = await taskService.getAllTasks();
-      isInitialized.value = true;
-    } catch (error) {
-      console.error("Failed to initialize tasks:", error);
-    } finally {
-      isLoading.value = false;
-    }
+    await loadTasks();
+    isInitialized.value = true;
   };
 
   // Initialize on component mount
@@ -53,9 +49,16 @@ export function useTasks() {
   const createTask = async (content: string, projectId?: number) => {
     isLoading.value = true;
     try {
-      const newTask = await taskService.createTask(content, "todo", projectId);
-      tasks.value = [newTask, ...tasks.value];
-      return newTask;
+      const task: Omit<TaskRecord, "id"> = {
+        type: "task",
+        content,
+        status: "todo",
+        createdAt: new Date(),
+        projectId,
+      };
+
+      const id = await addItem<TaskRecord>(TASKS_STORE, task);
+      tasks.value = [{ ...task, id }, ...tasks.value];
     } catch (error) {
       console.error("Failed to create task:", error);
       throw error;
@@ -73,14 +76,13 @@ export function useTasks() {
   ) => {
     isLoading.value = true;
     try {
-      const updatedTask = await taskService.updateTask(id, updates);
-      const index = tasks.value.findIndex((task) => task.id === id);
-      if (index !== -1) {
-        const updatedTasks = [...tasks.value];
-        updatedTasks[index] = updatedTask;
-        tasks.value = updatedTasks;
+      const task = await getItemById<TaskRecord>(TASKS_STORE, id);
+      if (!task) {
+        throw new Error(`Task with id ${id} not found`);
       }
-      return updatedTask;
+      const updatedTask: TaskRecord = { ...task, ...updates };
+      await updateItem<TaskRecord>(TASKS_STORE, updatedTask);
+      await loadTasks(); // Refresh tasks after update
     } catch (error) {
       console.error(`Failed to update task ${id}:`, error);
       throw error;
@@ -90,21 +92,13 @@ export function useTasks() {
   };
 
   /**
-   * Update task status
-   */
-  const updateTaskStatus = async (id: number, status: TaskRecord["status"]) => {
-    await updateTask(id, { status });
-    await refreshTasks();
-  };
-
-  /**
    * Delete a task
    */
   const deleteTask = async (id: number) => {
     isLoading.value = true;
     try {
-      await taskService.deleteTask(id);
-      tasks.value = tasks.value.filter((task) => task.id !== id);
+      await deleteItem(TASKS_STORE, id);
+      loadTasks(); // Refresh tasks after deletion
     } catch (error) {
       console.error(`Failed to delete task ${id}:`, error);
       throw error;
@@ -119,10 +113,8 @@ export function useTasks() {
   const deleteMultiple = async (ids: number[]) => {
     isLoading.value = true;
     try {
-      await taskService.deleteMultipleTasks(ids);
-      tasks.value = tasks.value.filter(
-        (task) => !ids.includes(task.id as number)
-      );
+      await deleteItems(TASKS_STORE, ids);
+      loadTasks(); // Refresh tasks after deletion
     } catch (error) {
       console.error("Failed to delete tasks:", error);
       throw error;
@@ -131,23 +123,21 @@ export function useTasks() {
     }
   };
 
-  /**
-   * Refresh tasks data from the database
-   */
-  const refreshTasks = async () => {
+  const unscheduledTasks = computed(() => {
+    return tasks.value.filter((task) => task.scheduledAt === null);
+  });
+
+  async function loadTasks() {
     isLoading.value = true;
     try {
-      tasks.value = await taskService.getAllTasks();
+      const result = await getAllItems<TaskRecord>(TASKS_STORE);
+      tasks.value = _.orderBy(result, ["createdAt"], ["desc"]);
     } catch (error) {
-      console.error("Failed to refresh tasks:", error);
+      console.error("Failed to initialize tasks:", error);
     } finally {
       isLoading.value = false;
     }
-  };
-
-  const unscheduledTasks = computed(() => {
-    return tasks.value.filter((task) => task.scheduledDate === null);
-  });
+  }
 
   return {
     tasks,
@@ -157,10 +147,8 @@ export function useTasks() {
     getByProject,
     createTask,
     updateTask,
-    updateTaskStatus,
     deleteTask,
     deleteMultiple,
-    refreshTasks,
     initialize,
     unscheduledTasks,
   };

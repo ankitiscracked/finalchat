@@ -6,6 +6,7 @@
         isTaskStatusPopoverOpen = val;
         isTaskEditPopoverOpen = val;
         isMoveTaskPopoverOpen = val;
+        isProjectPopoverOpen = val;
       }
     "
   >
@@ -21,7 +22,7 @@
           <button
             class="item-status border border-gray-100 outline-none focus:bg-gray-200 rounded-sm text-md"
             :class="[`status-${state}`]"
-            @click="updateStatus(props.task.id!, state)"
+            @click="updateTask(props.task.id!, { status: state as TaskStatus })"
           >
             {{ formatStatus(state) }}
           </button>
@@ -35,7 +36,9 @@
           v-model="task.content"
           class="w-full h-24 p-2 border border-gray-300 rounded-md outline-none"
           placeholder="Edit task content..."
-          @keydown.enter.prevent="updateContent(props.task.id!, task.content)"
+          @keydown.enter.prevent="
+            updateTask(props.task.id!, { content: task.content })
+          "
           @keydown.esc.prevent="isTaskEditPopoverOpen = false"
         ></textarea>
       </div>
@@ -49,13 +52,31 @@
         />
       </div>
 
+      <ProjectsCommandPalette
+        v-if="isProjectPopoverOpen"
+        placeholder="Move taks to project"
+        :on-project-select="async (item: CommandPaletteItem) => {
+          isProjectPopoverOpen = false;
+          await updateTask(props.task.id!, {projectId: item.value});
+          toast.add({
+            title: 'Task moved to project',
+            duration: 2000,
+            ui: {
+              progress:'' 
+            }
+          });
+        }"
+      />
       <!-- popover to re-schedule a task to a different date-->
     </template>
   </UPopover>
 </template>
 
 <script setup lang="ts">
-import type { TimelineItem } from "~/models";
+import type { CommandPaletteItem } from "@nuxt/ui";
+import type { TaskStatus, TimelineItem } from "~/models";
+
+const toast = useToast();
 
 const taskStates = ["todo", "in-progress", "done"];
 const props = defineProps<{
@@ -73,6 +94,10 @@ const isMoveTaskPopoverOpen = defineModel<boolean>("isMoveTaskPopoverOpen", {
   default: false,
 });
 
+const isProjectPopoverOpen = defineModel<boolean>("isProjectPopoverOpen", {
+  default: false,
+});
+
 const rescheduleOptions = ref([
   { label: "Today", value: "today" },
   { label: "Tomorrow", value: "tomorrow" },
@@ -87,7 +112,8 @@ const isPopoverOpen = computed(
   () =>
     isTaskEditPopoverOpen.value ||
     isTaskStatusPopoverOpen.value ||
-    isMoveTaskPopoverOpen.value
+    isMoveTaskPopoverOpen.value ||
+    isProjectPopoverOpen.value
 );
 const { updateTask, refreshTasks } = useTasks();
 
@@ -99,16 +125,6 @@ async function updateStatus(taskId: number, status: string) {
     console.error("Error updating task status:", error);
   }
   isTaskStatusPopoverOpen.value = false;
-}
-
-async function updateContent(taskId: number, content: string) {
-  try {
-    await updateTask(taskId, { content: content });
-    await refreshTasks();
-  } catch (error) {
-    console.error("Error updating task content:", error);
-  }
-  isTaskEditPopoverOpen.value = false;
 }
 
 function formatStatus(status: string): string {
@@ -124,7 +140,7 @@ function formatStatus(status: string): string {
   }
 }
 
-function moveTaskTo(selectedItem: any) {
+function moveTaskTo(selectedItem: CommandPaletteItem) {
   const { label, value } = selectedItem;
   if (value === "today") {
     // Logic to move task to today
